@@ -9,10 +9,10 @@ Star Citizen.
 APPAIRAGE, UNE SEULE FOIS
 =========================
 
-    1. Ouvre citizenpad.com sur ta tablette
-    2. Button Box, bouton APPAIRER
-    3. Lance CitizenPad Bridge (menu Demarrer ou Bureau)
-    4. Tape le code a 6 caracteres
+    1. Lance CitizenPad Bridge (menu Demarrer ou Bureau) : sa fenetre
+       te demande un code
+    2. Sur ta tablette, ouvre la Button Box et appuie sur APPAIRER
+    3. Tape le code affiche sur ta tablette, puis Valider
 
 Ensuite le Bridge retrouve ta tablette tout seul a chaque demarrage.
 
@@ -31,21 +31,21 @@ MISES A JOUR
 ============
 
 Le Bridge ne se met JAMAIS a jour tout seul : une coupure en plein combat
-serait pire que tout. Quand une nouvelle version existe :
-
-    la fenetre du Bridge l'annonce : touche U pour l'installer
-    ta tablette affiche un bouton « Installer » et un bouton « Plus tard »
-
-Tu choisis ton moment. L'installation prend quelques secondes et le Bridge
-se relance tout seul, toujours appaire.
+serait pire que tout. Quand une nouvelle version existe, sa fenetre et ta
+tablette affichent un bouton « Installer ». Tu choisis ton moment.
+L'installation prend quelques secondes et le Bridge se relance tout seul,
+toujours appaire.
 
 
-TOUCHES DE LA FENETRE DU BRIDGE
-===============================
+LA FENETRE ET L'ICONE PRES DE L'HORLOGE
+=======================================
 
-    U   installer la mise a jour
-    A   appairer ce PC a un autre compte
-    Q   quitter (relache toutes les touches)
+Fermer la fenetre (la croix) ne coupe pas le Bridge : il continue, et son
+icone reste pres de l'horloge. Clic droit dessus : Ouvrir, Installer la
+mise a jour, Journal, Quitter le Bridge.
+
+En bas de la fenetre : « Changer de compte » pour relier ce PC a un autre
+compte CitizenPad.
 
 
 CE QUE LE BRIDGE FAIT, ET NE FAIT PAS
