@@ -112,6 +112,9 @@ execFileSync(process.execPath, [
   console.log(`  sous-système : ${avant} → 2 (application Windows, sans console)`)
 }
 
+// Le logo affiché en haut de la fenêtre, à côté de l'exécutable.
+copyFileSync(join(racine, 'build', 'logo.png'), join(dist, 'logo.png'))
+
 writeFileSync(join(dist, 'version.txt'), version)
 console.log(`✓ ${exe}`)
 

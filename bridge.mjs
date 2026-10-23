@@ -144,7 +144,8 @@ class Fenetre {
 /** La fenêtre, quand elle est ouverte. null en mode console. */
 let fen = null
 /** État affiché (fenêtre ouverte), ou rien. */
-const etat = (code, detail) => fen?.etat(code, detail)
+// ⚠ Pas « etat » : ce nom est déjà pris par le paramètre de canal.subscribe.
+const montrerEtat = (code, detail) => fen?.etat(code, detail)
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MISES À JOUR — proposées, jamais imposées
@@ -283,7 +284,7 @@ async function quitter(code, message) {
   // Fenêtre ouverte : le problème s'y affiche, et on attend que le joueur
   // la ferme (Quitter) pour qu'il ait le temps de le lire.
   if (fen?.ok && message) {
-    etat('erreur', message)
+    montrerEtat('erreur', message)
     fen.afficher()
     await new Promise(r => { fen.actions.QUITTER = r; fen.actions.FERMEE = r })
     fen.fermer()
@@ -865,7 +866,7 @@ class Autorisations {
             noter(`REFUS  autre PC actif : ${(j.occupes || []).join(', ')}`)
           }
           this.refuse = { occupes: j.occupes || [] }
-          etat('refuse', t(`Ton compte est utilisé par le Bridge d'un autre PC (${(j.occupes || []).join(', ') || 'PC'}). Ferme-le, ou passe à Citizen Max pour utiliser deux PC.`,
+          montrerEtat('refuse', t(`Ton compte est utilisé par le Bridge d'un autre PC (${(j.occupes || []).join(', ') || 'PC'}). Ferme-le, ou passe à Citizen Max pour utiliser deux PC.`,
             `Your account is used by the Bridge of another PC (${(j.occupes || []).join(', ') || 'PC'}). Close it, or get Citizen Max to use two PCs.`))
           this.surRefus?.()
           return
@@ -874,12 +875,12 @@ class Autorisations {
           console.log('\n  ⚠ Ce PC n\'est plus reconnu. Supprime le fichier de configuration et relance :')
           console.log(`    ${CONFIG}\n`)
           this.refuse = { occupes: [] }
-          etat('erreur', t('Ce PC n\'est plus reconnu. Clique sur « Changer de compte » pour le relier à nouveau.',
+          montrerEtat('erreur', t('Ce PC n\'est plus reconnu. Clique sur « Changer de compte » pour le relier à nouveau.',
             'This PC is no longer recognized. Click "Switch account" to link it again.'))
           return
         }
         if (r.ok && Array.isArray(j.ecrans)) {
-          if (this.refuse) { console.log('\n  ✓ Ce PC a de nouveau la main.\n'); etat('pret', t('Ce PC a de nouveau la main.', 'This PC is back in control.')) }
+          if (this.refuse) { console.log('\n  ✓ Ce PC a de nouveau la main.\n'); montrerEtat('pret', t('Ce PC a de nouveau la main.', 'This PC is back in control.')) }
           this.refuse = null
           this.ecrans = new Set(j.ecrans)
         }
@@ -944,7 +945,7 @@ async function appairer(ancienne) {
 /** Même chose, dans la fenêtre : un champ, un bouton Valider, et des
  *  essais illimités (un code mal tapé n'oblige pas à tout relancer). */
 async function appairerFenetre(ancienne) {
-  etat('appairage', t('Le code apparaît sur ta tablette quand tu appuies sur APPAIRER.', 'The code appears on your tablet when you tap PAIR.'))
+  montrerEtat('appairage', t('Le code apparaît sur ta tablette quand tu appuies sur APPAIRER.', 'The code appears on your tablet when you tap PAIR.'))
   for (let premier = true; ; premier = false) {
     let code = String(await fen.demanderCode(premier)).toUpperCase().replace(/\s+/g, '')
     let site = process.env.CITIZENPAD_URL ? SITE : SITE_PROD
@@ -1164,14 +1165,14 @@ async function main() {
     tentative++
     const delai = Math.min(30000, 2000 * Math.pow(2, Math.min(tentative - 1, 4)))
     console.log(`  ↻ Nouvelle tentative dans ${Math.round(delai / 1000)} s…`)
-    etat('perdu', t(`Toutes les touches ont été relâchées. Nouvelle tentative dans ${Math.round(delai / 1000)} s…`,
+    montrerEtat('perdu', t(`Toutes les touches ont été relâchées. Nouvelle tentative dans ${Math.round(delai / 1000)} s…`,
       `All keys were released. Retrying in ${Math.round(delai / 1000)} s…`))
     minuteurRetry = setTimeout(connecter, delai)
   }
 
   function connecter() {
     if (canal) { try { db.removeChannel(canal) } catch {} canal = null }
-    if (!abonne) etat('connexion', t('Connexion à ton compte CitizenPad…', 'Connecting to your CitizenPad account…'))
+    if (!abonne) montrerEtat('connexion', t('Connexion à ton compte CitizenPad…', 'Connecting to your CitizenPad account…'))
 
     canal = db.channel(`bridge:${conf.canal}`, {
       config: { broadcast: { ack: false, self: false } },
@@ -1179,7 +1180,7 @@ async function main() {
 
     canal.on('broadcast', { event: 'ping' }, ({ payload }) => {
       autorisations.signaler(String(payload?.appareil || ''))
-      if (!autorisations.refuse) etat('tablette', t('Clique dans la fenêtre de Star Citizen, puis appuie sur tes boutons.', 'Click into the Star Citizen window, then press your buttons.'))
+      if (!autorisations.refuse) montrerEtat('tablette', t('Clique dans la fenêtre de Star Citizen, puis appuie sur tes boutons.', 'Click into the Star Citizen window, then press your buttons.'))
       pong()
     })
 
@@ -1241,7 +1242,7 @@ async function main() {
         const reprise = tentative > 0
         tentative = 0
         console.log(reprise ? '\n  ✓ Liaison rétablie.\n' : '  Connecté au salon.\n')
-        if (!autorisations.refuse) etat('pret', t('Ouvre la Button Box sur ta tablette, puis clique dans la fenêtre de Star Citizen.', 'Open the Button Box on your tablet, then click into the Star Citizen window.'))
+        if (!autorisations.refuse) montrerEtat('pret', t('Ouvre la Button Box sur ta tablette, puis clique dans la fenêtre de Star Citizen.', 'Open the Button Box on your tablet, then click into the Star Citizen window.'))
         if (!reprise) {
           console.log('  ▸ Laisse cette fenêtre ouverte et lance Star Citizen.')
           console.log('  ▸ Clique DANS la fenêtre du jeu avant d\'appuyer.')

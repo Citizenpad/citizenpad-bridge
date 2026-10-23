@@ -35,14 +35,18 @@ public class CPUI {
   [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int n);
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
-  static readonly Color FOND = Color.FromArgb(11, 16, 22);
-  static readonly Color PANNEAU = Color.FromArgb(20, 28, 38);
-  static readonly Color TEXTE = Color.FromArgb(230, 237, 243);
-  static readonly Color DOUX = Color.FromArgb(138, 155, 171);
-  static readonly Color BLEU = Color.FromArgb(59, 158, 255);
-  static readonly Color VERT = Color.FromArgb(46, 204, 113);
-  static readonly Color AMBRE = Color.FromArgb(240, 180, 41);
-  static readonly Color ROUGE = Color.FromArgb(255, 93, 93);
+  // Couleurs du logo et du site : fond clair, bleu CitizenPad, argent.
+  static readonly Color FOND = Color.FromArgb(238, 242, 246);
+  static readonly Color PANNEAU = Color.White;
+  static readonly Color BORD = Color.FromArgb(214, 223, 233);
+  static readonly Color TEXTE = Color.FromArgb(22, 32, 43);
+  static readonly Color DOUX = Color.FromArgb(95, 111, 128);
+  static readonly Color BLEU = Color.FromArgb(22, 104, 196);
+  static readonly Color BLEU_CLAIR = Color.FromArgb(30, 143, 255);
+  static readonly Color VERT = Color.FromArgb(15, 138, 95);
+  static readonly Color AMBRE = Color.FromArgb(176, 112, 0);
+  static readonly Color ROUGE = Color.FromArgb(192, 57, 43);
+  static Panel barreEtat;
   static Form f;
   static Label lblPoint, lblEtat, lblDetail, lblCompteur, lblErreur, lblMaj, lblMajNote, lblMajInfo, lblMsg, lblTest;
   static Panel pnlCode, pnlMaj;
@@ -96,6 +100,21 @@ public class CPUI {
     l.Click += clic;
     return l;
   }
+  // Carte blanche à bord fin, comme sur le site.
+  static Panel Carte(int l, int h, int haut) {
+    Panel c = new Panel(); c.Size = new Size(l, h); c.BackColor = PANNEAU; c.Margin = new Padding(0, haut, 0, 0);
+    c.Paint += delegate(object s, PaintEventArgs e) {
+      using (Pen p = new Pen(BORD)) e.Graphics.DrawRectangle(p, 0, 0, c.Width - 1, c.Height - 1);
+    };
+    return c;
+  }
+  static Button Secondaire(string s, int x, int l) {
+    Button b = Bouton(s, PANNEAU, x, 0, l, 36);
+    b.Font = P(9.5f, FontStyle.Regular); b.ForeColor = TEXTE;
+    b.FlatAppearance.BorderSize = 1; b.FlatAppearance.BorderColor = BORD;
+    b.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 241, 252);
+    return b;
+  }
   static void Construire(string exe, string version) {
     f = new Form();
     f.Text = "CitizenPad Bridge";
@@ -109,75 +128,96 @@ public class CPUI {
     FlowLayoutPanel racine = new FlowLayoutPanel();
     racine.FlowDirection = FlowDirection.TopDown; racine.WrapContents = false;
     racine.AutoSize = true; racine.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-    racine.Padding = new Padding(18, 14, 18, 10); racine.BackColor = FOND;
+    racine.Padding = new Padding(0, 0, 0, 12); racine.BackColor = FOND;
     f.Controls.Add(racine);
     f.AutoSize = true; f.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-    // En-tête
-    Panel tete = new Panel(); tete.Size = new Size(420, 58); tete.Margin = new Padding(0);
-    if (icone != null) {
-      PictureBox pic = new PictureBox();
-      pic.Image = new Icon(icone, 48, 48).ToBitmap(); pic.SizeMode = PictureBoxSizeMode.Zoom;
-      pic.Location = new Point(0, 4); pic.Size = new Size(46, 46);
+    // En-tête blanc avec le logo, souligné d'un dégradé bleu
+    Panel tete = new Panel(); tete.Size = new Size(456, 86); tete.Margin = new Padding(0); tete.BackColor = PANNEAU;
+    Image logo = null;
+    try { logo = Image.FromFile(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exe), "logo.png")); } catch { }
+    if (logo != null) {
+      PictureBox pic = new PictureBox(); pic.Image = logo; pic.SizeMode = PictureBoxSizeMode.Zoom;
+      pic.Location = new Point(18, 12); pic.Size = new Size(210, 49);
       tete.Controls.Add(pic);
+    } else {
+      if (icone != null) {
+        PictureBox pic = new PictureBox(); pic.Image = new Icon(icone, 48, 48).ToBitmap(); pic.SizeMode = PictureBoxSizeMode.Zoom;
+        pic.Location = new Point(18, 12); pic.Size = new Size(46, 46);
+        tete.Controls.Add(pic);
+      }
+      tete.Controls.Add(Texte("CitizenPad", 16f, TEXTE, FontStyle.Bold, 70, 16, 200, 32));
     }
-    tete.Controls.Add(Texte("CitizenPad Bridge", 15f, TEXTE, FontStyle.Bold, 54, 2, 300, 30));
-    tete.Controls.Add(Texte("version " + version, 9f, DOUX, FontStyle.Regular, 56, 32, 150, 20));
-    lblTest = Texte(T("VERSION DE TEST", "TEST VERSION"), 8.5f, Color.White, FontStyle.Bold, 300, 8, 120, 20);
+    Label sous = Texte("BRIDGE  ·  v" + version, 9f, BLEU, FontStyle.Bold, 240, 34, 140, 20);
+    tete.Controls.Add(sous);
+    lblTest = Texte(T("TEST", "TEST"), 8f, Color.White, FontStyle.Bold, 384, 34, 54, 20);
     lblTest.BackColor = Color.FromArgb(194, 83, 10); lblTest.TextAlign = ContentAlignment.MiddleCenter; lblTest.Visible = false;
     tete.Controls.Add(lblTest);
+    Panel degrade = new Panel(); degrade.Location = new Point(0, 80); degrade.Size = new Size(456, 6);
+    degrade.Paint += delegate(object s, PaintEventArgs e) {
+      using (LinearGradientBrush b = new LinearGradientBrush(degrade.ClientRectangle, BLEU_CLAIR, BLEU, LinearGradientMode.Horizontal))
+        e.Graphics.FillRectangle(b, degrade.ClientRectangle);
+    };
+    tete.Controls.Add(degrade);
     racine.Controls.Add(tete);
-    // État de la liaison
-    Panel etat = new Panel(); etat.Size = new Size(420, 92); etat.BackColor = PANNEAU; etat.Margin = new Padding(0, 6, 0, 0);
-    lblPoint = Texte("●", 18f, DOUX, FontStyle.Regular, 10, 8, 30, 34);
+    // Le reste, avec des marges
+    FlowLayoutPanel corps = new FlowLayoutPanel();
+    corps.FlowDirection = FlowDirection.TopDown; corps.WrapContents = false;
+    corps.AutoSize = true; corps.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+    corps.Margin = new Padding(18, 14, 18, 0); corps.BackColor = FOND;
+    racine.Controls.Add(corps);
+    // État de la liaison : une carte, avec une barre de couleur à gauche
+    Panel etat = Carte(420, 104, 0);
+    barreEtat = new Panel(); barreEtat.Location = new Point(0, 0); barreEtat.Size = new Size(6, 104); barreEtat.BackColor = DOUX;
+    lblPoint = Texte("●", 14f, DOUX, FontStyle.Regular, 16, 12, 24, 28);
     lblEtat = Texte(T("Démarrage…", "Starting…"), 12.5f, TEXTE, FontStyle.Bold, 40, 12, 370, 26);
-    lblDetail = Texte("", 9.5f, DOUX, FontStyle.Regular, 42, 40, 370, 22);
-    lblCompteur = Texte("", 9f, DOUX, FontStyle.Regular, 42, 64, 370, 20);
-    etat.Controls.Add(lblPoint); etat.Controls.Add(lblEtat); etat.Controls.Add(lblDetail); etat.Controls.Add(lblCompteur);
-    racine.Controls.Add(etat);
+    lblDetail = Texte("", 9.5f, DOUX, FontStyle.Regular, 42, 40, 368, 40);
+    lblCompteur = Texte("", 9f, BLEU, FontStyle.Regular, 42, 80, 368, 20);
+    etat.Controls.Add(barreEtat); etat.Controls.Add(lblPoint); etat.Controls.Add(lblEtat); etat.Controls.Add(lblDetail); etat.Controls.Add(lblCompteur);
+    corps.Controls.Add(etat);
     // Appairage
-    pnlCode = new Panel(); pnlCode.Size = new Size(420, 150); pnlCode.Margin = new Padding(0, 12, 0, 0); pnlCode.Visible = false;
-    pnlCode.Controls.Add(Texte(T("Relie ce PC à ta tablette (une seule fois)", "Link this PC to your tablet (once only)"), 11f, TEXTE, FontStyle.Bold, 0, 0, 420, 24));
+    pnlCode = Carte(420, 162, 12); pnlCode.Visible = false;
+    pnlCode.Controls.Add(Texte(T("Relie ce PC à ta tablette (une seule fois)", "Link this PC to your tablet (once only)"), 11f, TEXTE, FontStyle.Bold, 14, 12, 392, 24));
     pnlCode.Controls.Add(Texte(T("Sur ta tablette, ouvre la Button Box et appuie sur APPAIRER. Tape ici le code qui s'affiche sur ta tablette :",
-      "On your tablet, open the Button Box and tap PAIR. Type here the code shown on your tablet:"), 9.5f, DOUX, FontStyle.Regular, 0, 26, 420, 40));
+      "On your tablet, open the Button Box and tap PAIR. Type here the code shown on your tablet:"), 9.5f, DOUX, FontStyle.Regular, 14, 38, 392, 40));
     txtCode = new TextBox();
     txtCode.Font = new Font("Consolas", 18f, FontStyle.Bold); txtCode.CharacterCasing = CharacterCasing.Upper;
-    txtCode.BackColor = PANNEAU; txtCode.ForeColor = TEXTE; txtCode.BorderStyle = BorderStyle.FixedSingle;
+    txtCode.BackColor = Color.FromArgb(246, 249, 252); txtCode.ForeColor = TEXTE; txtCode.BorderStyle = BorderStyle.FixedSingle;
     txtCode.TextAlign = HorizontalAlignment.Center; txtCode.MaxLength = 12;
-    txtCode.Location = new Point(0, 70); txtCode.Size = new Size(260, 40);
-    btnValider = Bouton(T("Valider", "Confirm"), BLEU, 272, 69, 148, 38);
+    txtCode.Location = new Point(14, 82); txtCode.Size = new Size(240, 40);
+    btnValider = Bouton(T("Valider", "Confirm"), BLEU, 264, 81, 142, 38);
     btnValider.Click += delegate { Valider(); };
-    lblErreur = Texte("", 9.5f, ROUGE, FontStyle.Regular, 0, 116, 420, 34);
+    lblErreur = Texte("", 9.5f, ROUGE, FontStyle.Regular, 14, 124, 392, 34);
     pnlCode.Controls.Add(txtCode); pnlCode.Controls.Add(btnValider); pnlCode.Controls.Add(lblErreur);
-    racine.Controls.Add(pnlCode);
+    corps.Controls.Add(pnlCode);
     // Mise à jour
-    pnlMaj = new Panel(); pnlMaj.Size = new Size(420, 128); pnlMaj.Margin = new Padding(0, 12, 0, 0); pnlMaj.Visible = false;
-    pnlMaj.BackColor = Color.FromArgb(32, 27, 14);
-    lblMaj = Texte("", 11f, AMBRE, FontStyle.Bold, 12, 8, 400, 24);
-    lblMajNote = Texte("", 9f, DOUX, FontStyle.Regular, 12, 32, 400, 34);
-    btnMaj = Bouton(T("Installer maintenant", "Install now"), Color.FromArgb(25, 135, 84), 12, 70, 190, 34);
+    pnlMaj = Carte(420, 128, 12); pnlMaj.Visible = false;
+    pnlMaj.BackColor = Color.FromArgb(255, 247, 228);
+    lblMaj = Texte("", 11f, AMBRE, FontStyle.Bold, 14, 10, 392, 24);
+    lblMajNote = Texte("", 9f, DOUX, FontStyle.Regular, 14, 34, 392, 34);
+    btnMaj = Bouton(T("Installer maintenant", "Install now"), VERT, 14, 74, 186, 36);
     btnMaj.Click += delegate { DemanderMaj(); };
     lblMajInfo = Texte(T("Rien ne s'installe sans toi. Le Bridge se coupe une dizaine de secondes : pas en plein combat !",
-      "Nothing installs without you. The Bridge stops for about ten seconds: not in the middle of a fight!"), 8.5f, DOUX, FontStyle.Regular, 210, 68, 204, 52);
+      "Nothing installs without you. The Bridge stops for about ten seconds: not in the middle of a fight!"), 8.5f, DOUX, FontStyle.Regular, 208, 70, 202, 52);
     pnlMaj.Controls.Add(lblMaj); pnlMaj.Controls.Add(lblMajNote); pnlMaj.Controls.Add(btnMaj); pnlMaj.Controls.Add(lblMajInfo);
-    racine.Controls.Add(pnlMaj);
+    corps.Controls.Add(pnlMaj);
     // Messages ponctuels
     lblMsg = Texte("", 9.5f, AMBRE, FontStyle.Regular, 0, 0, 420, 40); lblMsg.Margin = new Padding(0, 8, 0, 0); lblMsg.Visible = false;
-    racine.Controls.Add(lblMsg);
+    corps.Controls.Add(lblMsg);
     // Pied : toutes les actions visibles, sans menu caché.
-    Panel pied = new Panel(); pied.Size = new Size(420, 40); pied.Margin = new Padding(0, 12, 0, 4);
-    Button bCompte = Bouton(T("Changer de compte", "Switch account"), PANNEAU, 0, 0, 150, 34);
-    bCompte.Font = P(9.5f, FontStyle.Regular); bCompte.ForeColor = TEXTE;
+    Panel pied = new Panel(); pied.Size = new Size(420, 38); pied.Margin = new Padding(0, 14, 0, 0);
+    Button bCompte = Secondaire(T("Changer de compte", "Switch account"), 0, 150);
     bCompte.Click += delegate { Changer(); };
-    Button bJournal = Bouton(T("Journal", "Log"), PANNEAU, 158, 0, 92, 34);
-    bJournal.Font = P(9.5f, FontStyle.Regular); bJournal.ForeColor = TEXTE;
+    Button bJournal = Secondaire(T("Journal", "Log"), 158, 92);
     bJournal.Click += delegate { Envoyer("JOURNAL"); };
-    Button bQuitter = Bouton(T("Quitter le Bridge", "Quit the Bridge"), Color.FromArgb(120, 34, 34), 258, 0, 162, 34);
+    Button bQuitter = Bouton(T("Quitter le Bridge", "Quit the Bridge"), ROUGE, 258, 0, 162, 36);
     bQuitter.Font = P(9.5f, FontStyle.Bold);
     bQuitter.Click += delegate { Quitter(); };
     pied.Controls.Add(bCompte); pied.Controls.Add(bJournal); pied.Controls.Add(bQuitter);
-    racine.Controls.Add(pied);
-    racine.Controls.Add(Texte(T("Garde cette fenêtre ouverte pendant que tu joues. Tu peux la réduire dans la barre des tâches.",
-      "Keep this window open while you play. You can minimize it to the taskbar."), 8.5f, DOUX, FontStyle.Regular, 0, 0, 420, 34));
+    corps.Controls.Add(pied);
+    Label astuce = Texte(T("Garde cette fenêtre ouverte pendant que tu joues. Tu peux la réduire dans la barre des tâches.",
+      "Keep this window open while you play. You can minimize it to the taskbar."), 8.5f, DOUX, FontStyle.Regular, 0, 0, 420, 34);
+    astuce.Margin = new Padding(0, 8, 0, 0);
+    corps.Controls.Add(astuce);
     f.AcceptButton = btnValider;
     // La croix ferme vraiment le Bridge (après confirmation) : un Bridge
     // caché qu'on oublie, c'est un PC qui accepte encore des touches.
@@ -248,7 +288,7 @@ public class CPUI {
         else if (code == "refuse") { c = AMBRE; titre = T("Compte utilisé sur un autre PC", "Account in use on another PC"); }
         else if (code == "appairage") { c = BLEU; titre = T("En attente du code", "Waiting for the code"); }
         else if (code == "erreur") { c = ROUGE; titre = T("Problème", "Problem"); }
-        lblPoint.ForeColor = c; lblEtat.Text = titre; lblDetail.Text = Champ(p, 2);
+        lblPoint.ForeColor = c; barreEtat.BackColor = c; lblEtat.Text = titre; lblDetail.Text = Champ(p, 2);
         f.Text = "CitizenPad Bridge · " + titre;
         break;
       }
