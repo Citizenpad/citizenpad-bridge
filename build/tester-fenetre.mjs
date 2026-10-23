@@ -17,11 +17,20 @@ if (mode === 'compiler') script = script.replace(/^\[CPUI\]::Run\(.*$/m, 'Write-
 const ps = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'], { stdio: ['pipe', 'pipe', 'pipe'] })
 let erreurs = ''
 ps.stderr.on('data', d => { erreurs += d })
-const echec = (m) => { console.error(`✗ ${m}\n${erreurs}`); try { ps.kill() } catch {} process.exit(1) }
+let sortie = ''
+const echec = (m) => {
+  console.error(`✗ ${m}\n${erreurs}`)
+  // Résumé lisible dans la page de l'exécution (annotations GitHub).
+  const resume = (erreurs || sortie).replace(/\s+/g, ' ').slice(0, 1500)
+  console.log(`::error::${m} :: ${resume}`)
+  try { ps.kill() } catch {}
+  process.exit(1)
+}
 const minuteur = setTimeout(() => echec('pas de réponse en 90 s'), 90_000)
 
 readline.createInterface({ input: ps.stdout }).on('line', (l) => {
   console.log(`  ${l}`)
+  sortie += l + '\n'
   if (l === 'COMPILE-OK') { clearTimeout(minuteur); console.log('✓ La fenêtre compile.'); ps.stdin.end() }
   if (l === 'PRET') {
     for (const m of ['ETAT\tpret\tTest', 'COMPTEUR\t3\tF1', 'MAJ\t9.9.9\tNote \\u00e9\tauto', 'CODE\tdemande', 'CODE\terreur\tRefus\\u00e9', 'MSG\tBonjour'])
@@ -31,6 +40,7 @@ readline.createInterface({ input: ps.stdout }).on('line', (l) => {
 })
 ps.on('exit', (code) => {
   clearTimeout(minuteur)
+  if (mode === 'compiler' && !sortie.includes('COMPILE-OK')) echec(`pas de COMPILE-OK (code ${code})`)
   if (erreurs.trim()) echec(`PowerShell a signalé des erreurs (code ${code})`)
   console.log(`✓ PowerShell terminé (code ${code}).`)
   process.exit(0)
