@@ -36,6 +36,8 @@ import { join, dirname, basename } from 'node:path'
 import readline from 'node:readline'
 import { createServer } from 'node:net'
 import { randomBytes, createHash } from 'node:crypto'
+import { connect as connexionLocale } from 'node:net'
+import { scriptFenetre, ascii } from './fenetre.mjs'
 
 /**
  * Version de CE Bridge.
@@ -70,6 +72,77 @@ const NOM_INSTALLEUR = 'CitizenPad-Bridge-Setup.exe'
 
 const CONFIG = join(homedir(), '.citizenpad', 'bridge.json')
 const JOURNAL = join(homedir(), '.citizenpad', 'journal.txt')
+
+// Français si Windows est en français, anglais sinon.
+const FR = (() => { try { return /^fr/i.test(Intl.DateTimeFormat().resolvedOptions().locale) } catch { return true } })()
+const t = (fr, en) => FR ? fr : en
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  LA FENÊTRE (voir fenetre.mjs)
+// ═══════════════════════════════════════════════════════════════════════════
+//  Ouverte par défaut dans la version .exe. `--console` garde l'ancienne
+//  console (dépannage) ; CP_FENETRE=1 l'ouvre aussi en développement.
+class Fenetre {
+  constructor() {
+    this.ps = null
+    this.ok = false
+    this.fermeture = false
+    this.attenteCode = null
+    this.actions = {}       // MAJ, CHANGER, JOURNAL, QUITTER, FERMEE
+  }
+
+  /** true si la fenêtre s'est ouverte ; false (sans rien casser) sinon. */
+  ouvrir() {
+    return new Promise((resolve) => {
+      let fini = false
+      const finir = (v) => { if (!fini) { fini = true; resolve(v) } }
+      try {
+        this.ps = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
+          { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      } catch (e) { noter(`FENÊTRE  lancement impossible : ${e.message}`); return finir(false) }
+      this.ps.on('error', (e) => { noter(`FENÊTRE  ${e.message}`); finir(false) })
+      this.ps.stderr.setEncoding('utf8')
+      this.ps.stderr.on('data', d => noter(`FENÊTRE  ${String(d).trim().slice(0, 600)}`))
+      readline.createInterface({ input: this.ps.stdout }).on('line', (l) => {
+        const [quoi, ...reste] = l.split('\t')
+        if (quoi === 'PRET') { this.ok = true; return finir(true) }
+        if (quoi === 'CODE') { const r = this.attenteCode; this.attenteCode = null; r?.(reste.join('')); return }
+        this.actions[quoi]?.()
+      })
+      this.ps.on('exit', () => {
+        const etaitOk = this.ok
+        this.ok = false
+        finir(false)
+        if (etaitOk && !this.fermeture) { noter('FENÊTRE  fermée de façon inattendue'); this.actions.FERMEE?.() }
+      })
+      this.ps.stdin.on('error', () => {})
+      this.ps.stdin.write(scriptFenetre({
+        exe: process.execPath, version: VERSION,
+        cacherConsole: !process.argv.includes('--console'), langue: FR ? 'fr' : 'en',
+      }))
+      // Compilation + ouverture : une à trois secondes d'habitude.
+      setTimeout(() => { if (!this.ok) { noter('FENÊTRE  pas de réponse, retour à la console'); try { this.ps.kill() } catch {} finir(false) } }, 30_000)
+    })
+  }
+
+  envoyer(...champs) {
+    if (!this.ok || !this.ps?.stdin.writable) return
+    const ligne = champs.map(c => String(c ?? '').replace(/[\t\r\n]+/g, ' ')).join('\t')
+    this.ps.stdin.write(ascii(ligne) + '\n')
+  }
+  etat(code, detail = '') { this.envoyer('ETAT', code, detail) }
+  afficher() { this.envoyer('AFFICHER') }
+  /** Attend que le joueur appuie sur Valider. `afficher` : montre d'abord le
+   *  champ (la première fois seulement : le refaire effacerait le message
+   *  d'erreur d'un code refusé). */
+  demanderCode(afficher) { if (afficher) this.envoyer('CODE', 'demande'); return new Promise(r => { this.attenteCode = r }) }
+  fermer() { this.fermeture = true; this.envoyer('FIN') }
+}
+
+/** La fenêtre, quand elle est ouverte. null en mode console. */
+let fen = null
+/** État affiché (fenêtre ouverte), ou rien. */
+const etat = (code, detail) => fen?.etat(code, detail)
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MISES À JOUR — proposées, jamais imposées
@@ -120,6 +193,7 @@ async function chercherMaj() {
 }
 
 function afficherMaj() {
+  fen?.envoyer('MAJ', maj?.version || '', maj?.note || '', EXE ? 'auto' : 'manuel')
   if (!maj) return
   console.log('')
   console.log('  ┌────────────────────────────────────────────────┐')
@@ -143,8 +217,10 @@ async function installerMaj(avantDeQuitter) {
   const v = maj.version
   const url = `${DEPOT}/v${v}/${NOM_INSTALLEUR}`
   const cible = join(tmpdir(), `CitizenPad-Bridge-Setup-${v}.exe`)
+  const annoncer = (texte, echec) => { fen?.envoyer('MAJPROG', texte, echec ? 'echec' : '') }
   try {
     console.log(`\n  Téléchargement de la version ${v}…`)
+    annoncer(t(`Téléchargement de la version ${v}…`, `Downloading version ${v}…`))
     noter(`MAJ  téléchargement ${url}`)
 
     // L'empreinte publiée à côté de l'installateur : un fichier tronqué ou
@@ -162,7 +238,7 @@ async function installerMaj(avantDeQuitter) {
     for await (const m of r.body) {
       morceaux.push(m); recu += m.length
       const pct = total ? Math.floor(recu * 100 / total) : -1
-      if (pct !== dernierPct && pct % 5 === 0) { dernierPct = pct; process.stdout.write(`\r  ${pct} %   `) }
+      if (pct !== dernierPct && pct % 5 === 0) { dernierPct = pct; process.stdout.write(`\r  ${pct} %   `); annoncer(t(`Téléchargement… ${pct} %`, `Downloading… ${pct}%`)) }
     }
     const donnees = Buffer.concat(morceaux)
     const empreinte = createHash('sha256').update(donnees).digest('hex')
@@ -173,6 +249,7 @@ async function installerMaj(avantDeQuitter) {
 
     await avantDeQuitter?.()
     console.log('  Installation… le Bridge va se relancer tout seul.\n')
+    annoncer(t('Installation… le Bridge revient tout seul dans quelques secondes.', 'Installing… the Bridge will be back in a few seconds.'))
     noter(`MAJ  lancement de l'installateur ${v}`)
     // /SILENT : aucune question, juste une barre de progression.
     await new Promise((ok, ko) => {
@@ -185,10 +262,12 @@ async function installerMaj(avantDeQuitter) {
       noter(`MAJ  lancement impossible : ${e.message}`)
       await quitter(1)
     })
+    fen?.fermer()
     setTimeout(() => process.exit(0), 400)
     return true
   } catch (e) {
     console.log(`\n  ✗ Mise à jour impossible : ${e.message}`)
+    annoncer(t(`Mise à jour impossible (${e.message}). Ton Bridge continue de fonctionner.`, `Update failed (${e.message}). Your Bridge keeps working.`), true)
     console.log(`    Ton Bridge continue de fonctionner. Tu peux aussi la télécharger sur ${SITE_PROD}.\n`)
     noter(`MAJ  échec : ${e.message}`)
     try { if (existsSync(cible)) unlinkSync(cible) } catch {}
@@ -198,7 +277,17 @@ async function installerMaj(avantDeQuitter) {
 
 /** Ferme le programme. En .exe, la fenêtre disparaîtrait avant qu'on ait pu
  *  lire le message : on attend Entrée. */
-async function quitter(code) {
+async function quitter(code, message) {
+  // Fenêtre ouverte : le problème s'y affiche, et on attend que le joueur
+  // la ferme (Quitter) pour qu'il ait le temps de le lire.
+  if (fen?.ok && message) {
+    etat('erreur', message)
+    fen.afficher()
+    await new Promise(r => { fen.actions.QUITTER = r; fen.actions.FERMEE = r })
+    fen.fermer()
+    await new Promise(r => setTimeout(r, 200))
+    process.exit(code)
+  }
   if (EXE && process.stdin.isTTY) await demander('  Appuie sur Entrée pour fermer. ')
   process.exit(code)
 }
@@ -664,7 +753,14 @@ const PORT_VERROU = 47809
 
 function essayerVerrou() {
   return new Promise((resolve) => {
-    const serveur = createServer(sock => sock.destroy())
+    // Un second lancement (double clic sur le raccourci) se connecte ici
+    // pour dire « montre-toi », puis s'arrête : on voit la fenêtre existante
+    // au lieu d'un message d'erreur.
+    const serveur = createServer(sock => {
+      sock.setTimeout(2000, () => sock.destroy())
+      sock.on('data', d => { if (String(d).includes('AFFICHER')) fen?.afficher(); sock.destroy() })
+      sock.on('error', () => {})
+    })
     serveur.once('error', () => resolve(false))
     serveur.listen(PORT_VERROU, '127.0.0.1', () => resolve(true))
   })
@@ -678,6 +774,15 @@ async function verrouUnique() {
     await new Promise(r => setTimeout(r, 700))
   }
   return false
+}
+
+/** Demande au Bridge déjà ouvert de se montrer. true s'il a répondu. */
+function montrerAutreBridge() {
+  return new Promise(resolve => {
+    const s = connexionLocale(PORT_VERROU, '127.0.0.1', () => { s.end('AFFICHER\n'); resolve(true) })
+    s.on('error', () => resolve(false))
+    s.setTimeout(1500, () => { s.destroy(); resolve(false) })
+  })
 }
 
 /** Identifiant de CE Bridge, tiré au hasard une fois et gardé dans la config. */
@@ -732,6 +837,8 @@ class Autorisations {
             noter(`REFUS  autre PC actif : ${(j.occupes || []).join(', ')}`)
           }
           this.refuse = { occupes: j.occupes || [] }
+          etat('refuse', t(`Ton compte est utilisé par le Bridge d'un autre PC (${(j.occupes || []).join(', ') || 'PC'}). Ferme-le, ou passe à Citizen Max pour utiliser deux PC.`,
+            `Your account is used by the Bridge of another PC (${(j.occupes || []).join(', ') || 'PC'}). Close it, or get Citizen Max to use two PCs.`))
           this.surRefus?.()
           return
         }
@@ -739,10 +846,12 @@ class Autorisations {
           console.log('\n  ⚠ Ce PC n\'est plus reconnu. Supprime le fichier de configuration et relance :')
           console.log(`    ${CONFIG}\n`)
           this.refuse = { occupes: [] }
+          etat('erreur', t('Ce PC n\'est plus reconnu. Clique sur « Changer de compte » pour le relier à nouveau.',
+            'This PC is no longer recognized. Click "Switch account" to link it again.'))
           return
         }
         if (r.ok && Array.isArray(j.ecrans)) {
-          if (this.refuse) console.log('\n  ✓ Ce PC a de nouveau la main.\n')
+          if (this.refuse) { console.log('\n  ✓ Ce PC a de nouveau la main.\n'); etat('pret', t('Ce PC a de nouveau la main.', 'This PC is back in control.')) }
           this.refuse = null
           this.ecrans = new Set(j.ecrans)
         }
@@ -772,6 +881,7 @@ function demander(question) {
 }
 
 async function appairer(ancienne) {
+  if (fen?.ok) return appairerFenetre(ancienne)
   console.log('\n  Ouvre la Button Box sur ta tablette, appuie sur APPAIRER,')
   console.log('  puis recopie le code affiché.\n')
   for (let essai = 0; essai < 5; essai++) {
@@ -801,6 +911,39 @@ async function appairer(ancienne) {
   }
   console.log('  Trop de tentatives. Relance le programme.\n')
   return quitter(1)
+}
+
+/** Même chose, dans la fenêtre : un champ, un bouton Valider, et des
+ *  essais illimités (un code mal tapé n'oblige pas à tout relancer). */
+async function appairerFenetre(ancienne) {
+  etat('appairage', t('Le code apparaît sur ta tablette quand tu appuies sur APPAIRER.', 'The code appears on your tablet when you tap PAIR.'))
+  for (let premier = true; ; premier = false) {
+    let code = String(await fen.demanderCode(premier)).toUpperCase().replace(/\s+/g, '')
+    let site = process.env.CITIZENPAD_URL ? SITE : SITE_PROD
+    if (/^T-/.test(code)) { site = SITE_TEST; code = code.slice(2) }
+    try {
+      const r = await fetch(`${site}/api/bridge/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, appareil: process.env.COMPUTERNAME || 'PC' }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        fen.envoyer('CODE', 'erreur', j?.error || t('Code refusé. Vérifie-le sur ta tablette, ou appuie à nouveau sur APPAIRER pour en avoir un neuf.', 'Code refused. Check it on your tablet, or tap PAIR again for a new one.'))
+        continue
+      }
+      const conf = { canal: j.canal, url: j.supabase_url, anon: j.supabase_anon, site, bridge_id: ancienne?.bridge_id }
+      if (!conf.bridge_id) delete conf.bridge_id
+      ecrireConfig(conf)
+      SITE = site
+      if (site === SITE_TEST) fen.envoyer('TEST')
+      fen.envoyer('CODE', 'ok')
+      noter(`Appairé (${site})`)
+      return conf
+    } catch (e) {
+      fen.envoyer('CODE', 'erreur', t(`Connexion impossible (${e.message}). Vérifie ta connexion Internet et réessaie.`, `Cannot connect (${e.message}). Check your Internet connection and try again.`))
+    }
+  }
 }
 
 /** Le site retenu dans la configuration, s'il fait partie des deux connus. */
@@ -855,14 +998,35 @@ async function main() {
   }
 
   if (!(await verrouUnique())) {
+    // Déjà ouvert : on montre sa fenêtre et on s'efface.
+    if (await montrerAutreBridge()) process.exit(0)
     console.log('  ⚠ CitizenPad Bridge est déjà ouvert sur ce PC.')
     console.log('    Un seul Bridge à la fois : utilise la fenêtre déjà ouverte.\n')
     return quitter(0)
   }
 
+  // La fenêtre, sauf demande contraire. Si elle ne s'ouvre pas, la console
+  // reste : le Bridge fonctionne quand même.
+  if ((EXE || process.env.CP_FENETRE === '1') && !process.argv.includes('--console')) {
+    console.log('  Ouverture de la fenêtre…')
+    const f = new Fenetre()
+    if (await f.ouvrir()) {
+      fen = f
+      // Avant que la session existe, ces actions ont un comportement simple ;
+      // elles sont remplacées plus bas une fois connectés.
+      fen.actions.QUITTER = () => { fen.fermer(); setTimeout(() => process.exit(0), 200) }
+      fen.actions.FERMEE = () => process.exit(0)
+      fen.actions.JOURNAL = ouvrirJournal
+      fen.actions.CHANGER = () => changerDeCompte()
+      fen.actions.MAJ = async () => { if (enMaj) return; enMaj = true; if (!(await installerMaj())) enMaj = false }
+    } else {
+      console.log('  (fenêtre indisponible : on reste dans cette console)\n')
+    }
+  }
+
   let conf = lireConfig()
   appliquerSite(conf)
-  if (SITE !== SITE_PROD) console.log(`  ⚠ VERSION DE TEST : ${SITE}\n`)
+  if (SITE !== SITE_PROD) { console.log(`  ⚠ VERSION DE TEST : ${SITE}\n`); fen?.envoyer('TEST') }
 
   // On annonce la mise à jour dès le lancement, mais on NE fait PAS attendre
   // la connexion : le Bridge a peut-être été relancé en pleine partie. Le
@@ -883,7 +1047,11 @@ async function main() {
   const injecteur = new Injecteur()
   process.stdout.write('  Préparation du clavier… ')
   try { await injecteur.demarrer(); console.log('OK') }
-  catch (e) { console.log(`ÉCHEC\n  ${e.message}\n`); return quitter(1) }
+  catch (e) {
+    console.log(`ÉCHEC\n  ${e.message}\n`)
+    return quitter(1, t(`Le clavier n'a pas pu être préparé (${e.message}). Relance le Bridge ; si ça recommence, écris-nous avec le journal.`,
+      `The keyboard could not be prepared (${e.message}). Restart the Bridge; if it happens again, write to us with the log.`))
+  }
 
   const db = createClient(conf.url, conf.anon, {
     auth: { persistSession: false },
@@ -916,6 +1084,8 @@ async function main() {
   let minuteurRetry = null
 
   const nomPC = process.env.COMPUTERNAME || 'PC'
+  let derniereTouche = ''
+  let minuteurCompteur = null
 
   // N'émettre QUE si le canal est réellement abonné : sinon la librairie
   // bascule silencieusement sur des appels HTTP, ce qui remplit la console
@@ -943,11 +1113,14 @@ async function main() {
     tentative++
     const delai = Math.min(30000, 2000 * Math.pow(2, Math.min(tentative - 1, 4)))
     console.log(`  ↻ Nouvelle tentative dans ${Math.round(delai / 1000)} s…`)
+    etat('perdu', t(`Toutes les touches ont été relâchées. Nouvelle tentative dans ${Math.round(delai / 1000)} s…`,
+      `All keys were released. Retrying in ${Math.round(delai / 1000)} s…`))
     minuteurRetry = setTimeout(connecter, delai)
   }
 
   function connecter() {
     if (canal) { try { db.removeChannel(canal) } catch {} canal = null }
+    if (!abonne) etat('connexion', t('Connexion à ton compte CitizenPad…', 'Connecting to your CitizenPad account…'))
 
     canal = db.channel(`bridge:${conf.canal}`, {
       config: { broadcast: { ack: false, self: false } },
@@ -955,6 +1128,7 @@ async function main() {
 
     canal.on('broadcast', { event: 'ping' }, ({ payload }) => {
       autorisations.signaler(String(payload?.appareil || ''))
+      if (!autorisations.refuse) etat('tablette', t('Clique dans la fenêtre de Star Citizen, puis appuie sur tes boutons.', 'Click into the Star Citizen window, then press your buttons.'))
       pong()
     })
 
@@ -1005,6 +1179,9 @@ async function main() {
 
       compteur++
       process.stdout.write(`\r  Commandes transmises : ${compteur}   (dernière : ${touche})        `)
+      // Au plus quatre mises à jour par seconde de la fenêtre.
+      derniereTouche = touche
+      if (!minuteurCompteur) minuteurCompteur = setTimeout(() => { minuteurCompteur = null; fen?.envoyer('COMPTEUR', compteur, derniereTouche) }, 250)
     })
 
     canal.subscribe(etat => {
@@ -1013,6 +1190,7 @@ async function main() {
         const reprise = tentative > 0
         tentative = 0
         console.log(reprise ? '\n  ✓ Liaison rétablie.\n' : '  Connecté au salon.\n')
+        if (!autorisations.refuse) etat('pret', t('Ouvre la Button Box sur ta tablette, puis clique dans la fenêtre de Star Citizen.', 'Open the Button Box on your tablet, then click into the Star Citizen window.'))
         if (!reprise) {
           console.log('  ▸ Laisse cette fenêtre ouverte et lance Star Citizen.')
           console.log('  ▸ Clique DANS la fenêtre du jeu avant d\'appuyer.')
@@ -1051,6 +1229,7 @@ async function main() {
     await chercherMaj()
     if (maj && maj.version !== avant) {
       console.log(`\n\n  ★ Mise à jour ${maj.version} disponible. Touche U pour l'installer quand tu veux (ou depuis ta tablette).\n`)
+      afficherMaj()
       pong()
     }
   }, 2 * 3600_000)
@@ -1071,7 +1250,18 @@ async function main() {
     clearInterval(minuteurPong)
     clearTimeout(minuteurRetry)
     injecteur.arreter()
+    fen?.fermer()
     setTimeout(() => process.exit(0), 300)
+  }
+  if (fen) {
+    fen.actions.QUITTER = sortir
+    fen.actions.FERMEE = sortir          // fenêtre tuée : on ne tourne pas en aveugle
+    fen.actions.CHANGER = () => changerDeCompte(arreterProprement)
+    fen.actions.MAJ = async () => {
+      if (enMaj) return
+      enMaj = true
+      if (!(await installerMaj(arreterProprement))) enMaj = false
+    }
   }
   process.on('SIGINT', sortir)
   process.on('SIGTERM', sortir)
@@ -1105,12 +1295,7 @@ async function main() {
         occupe = true
         process.stdin.setRawMode(false)
         const rep = await demander('\n\n  Appairer ce PC à un autre compte ? Le compte actuel sera oublié. (O/N) : ')
-        if (/^[oy]/i.test(rep)) {
-          const c = lireConfig() || {}
-          ecrireConfig({ bridge_id: c.bridge_id })
-          console.log('  Un nouveau Bridge s\'ouvre et te demandera le code.\n')
-          return relancer(arreterProprement)
-        }
+        if (/^[oy]/i.test(rep)) return changerDeCompte(arreterProprement)
         process.stdin.setRawMode(true)
         process.stdin.resume()
         occupe = false
@@ -1121,4 +1306,26 @@ async function main() {
 
 let enMaj = false
 
-main().catch(e => { console.error('\n  Erreur :', e.message, '\n'); noter(`ERREUR  ${e.stack || e.message}`); quitter(1) })
+/** Oublie le compte (garde l'identifiant du PC) et relance un Bridge neuf,
+ *  qui demandera un code. */
+function changerDeCompte(avant) {
+  const c = lireConfig() || {}
+  ecrireConfig({ bridge_id: c.bridge_id })
+  noter('Changement de compte demandé')
+  console.log('  Un nouveau Bridge s\'ouvre et te demandera le code.\n')
+  return relancer(async () => { await avant?.(); fen?.fermer() })
+}
+
+function ouvrirJournal() {
+  try {
+    if (!existsSync(JOURNAL)) { mkdirSync(dirname(JOURNAL), { recursive: true }); writeFileSync(JOURNAL, '') }
+    spawn('notepad.exe', [JOURNAL], { detached: true, stdio: 'ignore' }).unref()
+  } catch {}
+}
+
+main().catch(e => {
+  console.error('\n  Erreur :', e.message, '\n')
+  noter(`ERREUR  ${e.stack || e.message}`)
+  quitter(1, t(`Erreur inattendue : ${e.message}. Relance le Bridge ; si ça recommence, écris-nous avec le journal.`,
+    `Unexpected error: ${e.message}. Restart the Bridge; if it happens again, write to us with the log.`))
+})

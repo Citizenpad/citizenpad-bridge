@@ -37,6 +37,12 @@ jobs:
       - name: Dépendances
         run: npm ci --no-audit --no-fund
 
+      - name: La fenêtre compile-t-elle ?
+        run: node build/tester-fenetre.mjs compiler
+
+      - name: La fenêtre s'ouvre-t-elle ?
+        run: node build/tester-fenetre.mjs ouvrir
+
       - name: Exécutable (Node SEA)
         run: npm run fabriquer
 
