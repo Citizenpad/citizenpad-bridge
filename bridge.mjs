@@ -106,6 +106,7 @@ class Fenetre {
       readline.createInterface({ input: this.ps.stdout }).on('line', (l) => {
         const [quoi, ...reste] = l.split('\t')
         if (quoi === 'PRET') { this.ok = true; return finir(true) }
+        if (quoi === 'ERREUR') { noter(`FENÊTRE  erreur : ${reste.join(' ').slice(0, 1500)}`); return }
         if (quoi === 'CODE') { const r = this.attenteCode; this.attenteCode = null; r?.(reste.join('')); return }
         this.actions[quoi]?.()
       })
@@ -303,8 +304,10 @@ let journalActif = true
 function noter(ligne) {
   if (!journalActif) return
   try {
-    const t = new Date().toISOString().slice(11, 23)
-    appendFileSync(JOURNAL, `${t}  ${ligne}\n`)
+    // Le dossier n'existe pas encore au tout premier lancement.
+    if (!noter.pret) { mkdirSync(dirname(JOURNAL), { recursive: true }); noter.pret = true }
+    const h = new Date().toISOString().replace('T', ' ').slice(0, 23)
+    appendFileSync(JOURNAL, `${h}  ${ligne}\n`)
   } catch { journalActif = false }
 }
 
@@ -758,7 +761,9 @@ function essayerVerrou() {
     // au lieu d'un message d'erreur.
     const serveur = createServer(sock => {
       sock.setTimeout(2000, () => sock.destroy())
-      sock.on('data', d => { if (String(d).includes('AFFICHER')) fen?.afficher(); sock.destroy() })
+      // Réponse « OK » : ce Bridge-ci fonctionne et vient de se montrer. Le
+      // nouveau venu peut s'effacer tranquillement.
+      sock.on('data', d => { if (String(d).includes('AFFICHER')) { fen?.afficher(); sock.end('OK\n') } else sock.destroy() })
       sock.on('error', () => {})
     })
     serveur.once('error', () => resolve(false))
@@ -776,12 +781,33 @@ async function verrouUnique() {
   return false
 }
 
-/** Demande au Bridge déjà ouvert de se montrer. true s'il a répondu. */
+/** Demande au Bridge déjà ouvert de se montrer.
+ *  'ok' : il a répondu et s'affiche.  'muet' : quelque chose tient la place
+ *  sans répondre (ancienne version, ou Bridge bloqué). */
 function montrerAutreBridge() {
   return new Promise(resolve => {
-    const s = connexionLocale(PORT_VERROU, '127.0.0.1', () => { s.end('AFFICHER\n'); resolve(true) })
-    s.on('error', () => resolve(false))
-    s.setTimeout(1500, () => { s.destroy(); resolve(false) })
+    let fini = false
+    const finir = (v) => { if (!fini) { fini = true; try { s.destroy() } catch {} resolve(v) } }
+    const s = connexionLocale(PORT_VERROU, '127.0.0.1', () => s.write('AFFICHER\n'))
+    s.setEncoding('utf8')
+    s.on('data', d => finir(String(d).includes('OK') ? 'ok' : 'muet'))
+    s.on('error', () => finir('muet'))
+    s.on('close', () => finir('muet'))
+    s.setTimeout(2500, () => finir('muet'))
+  })
+}
+
+/** Arrête les autres CitizenPad-Bridge.exe de ce PC (jamais celui-ci). Sert
+ *  quand un Bridge bloqué ou une ancienne version tient la place sans
+ *  répondre : sans ça, le joueur ne pourrait plus rien lancer. */
+function arreterAutresBridges() {
+  return new Promise(resolve => {
+    try {
+      const p = spawn('taskkill.exe', ['/F', '/IM', 'CitizenPad-Bridge.exe', '/FI', `PID ne ${process.pid}`],
+        { stdio: 'ignore', windowsHide: true })
+      p.on('exit', () => setTimeout(resolve, 800))
+      p.on('error', () => resolve())
+    } catch { resolve() }
   })
 }
 
@@ -984,6 +1010,7 @@ async function main() {
     console.log('  Cette version ne fonctionne que sous Windows.\n')
     return quitter(1)
   }
+  noter(`──────── Lancement ${VERSION}${EXE ? ' (.exe)' : ''} ${process.argv.slice(2).join(' ')}`)
 
   // Node n'expose une WebSocket native qu'à partir de la version 22 (la
   // version .exe l'embarque). En dessous, on charge le paquet `ws`.
@@ -998,11 +1025,20 @@ async function main() {
   }
 
   if (!(await verrouUnique())) {
-    // Déjà ouvert : on montre sa fenêtre et on s'efface.
-    if (await montrerAutreBridge()) process.exit(0)
-    console.log('  ⚠ CitizenPad Bridge est déjà ouvert sur ce PC.')
-    console.log('    Un seul Bridge à la fois : utilise la fenêtre déjà ouverte.\n')
-    return quitter(0)
+    // Déjà ouvert et en forme : on montre sa fenêtre et on s'efface.
+    const reponse = await montrerAutreBridge()
+    noter(`Un autre Bridge occupe la place : ${reponse}`)
+    if (reponse === 'ok') process.exit(0)
+    // Il ne répond pas : on le remplace, plutôt que de laisser le joueur
+    // devant un Bridge qui « s'éteint » à chaque lancement.
+    let libre = false
+    if (EXE) { await arreterAutresBridges(); libre = await verrouUnique() }
+    if (!libre) {
+      console.log('  ⚠ CitizenPad Bridge est déjà ouvert sur ce PC.')
+      console.log('    Un seul Bridge à la fois : utilise la fenêtre déjà ouverte.\n')
+      return quitter(0)
+    }
+    noter('Ancien Bridge arrêté, on prend la place')
   }
 
   // La fenêtre, sauf demande contraire. Si elle ne s'ouvre pas, la console

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  Une vraie fenêtre Windows à la place de la console noire : état de la
 //  liaison, champ pour le code d'appairage avec un bouton Valider, mise à
-//  jour en un clic, et une icône près de l'horloge.
+//  jour en un clic, et toutes les actions en boutons visibles.
 //
 //  Comment : comme pour le clavier, un PowerShell reste ouvert. Il compile
 //  au lancement le petit programme C# ci-dessous (Windows Forms, présent sur
@@ -13,7 +13,7 @@
 //  Node et la fenêtre se parlent par lignes de texte, champs séparés par une
 //  tabulation :
 //    Node → fenêtre   ETAT, CODE, COMPTEUR, MAJ, MAJPROG, MSG, AFFICHER, FIN
-//    fenêtre → Node   PRET, CODE, MAJ, CHANGER, JOURNAL, QUITTER
+//    fenêtre → Node   PRET, CODE, MAJ, CHANGER, JOURNAL, QUITTER, ERREUR
 //
 //  Si la fenêtre ne peut pas s'ouvrir, le Bridge garde la console : il
 //  fonctionne toujours, juste moins joliment.
@@ -44,13 +44,11 @@ public class CPUI {
   static readonly Color AMBRE = Color.FromArgb(240, 180, 41);
   static readonly Color ROUGE = Color.FromArgb(255, 93, 93);
   static Form f;
-  static NotifyIcon tray;
-  static ToolStripMenuItem menuMaj;
   static Label lblPoint, lblEtat, lblDetail, lblCompteur, lblErreur, lblMaj, lblMajNote, lblMajInfo, lblMsg, lblTest;
   static Panel pnlCode, pnlMaj;
   static TextBox txtCode;
   static Button btnValider, btnMaj;
-  static bool fr = true, quitter = false, bulleVue = false;
+  static bool fr = true, quitter = false;
   static string T(string a, string b) { return fr ? a : b; }
   static readonly object verrou = new object();
   static void Envoyer(string l) { lock (verrou) { Console.Out.WriteLine(l); Console.Out.Flush(); } }
@@ -60,15 +58,23 @@ public class CPUI {
     try { SetProcessDPIAware(); } catch { }
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
-    Construire(exe, version);
-    f.Shown += delegate {
-      Thread t = new Thread(Lire);
-      t.IsBackground = true;
-      t.Start();
-      Envoyer("PRET");
-    };
-    Application.Run(f);
+    // Toute erreur est renvoyée au Bridge, qui l'écrit dans son journal.
+    Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+    Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Envoyer("ERREUR\t" + Une(e.Exception.ToString())); };
+    try {
+      Construire(exe, version);
+      f.Shown += delegate {
+        Thread t = new Thread(Lire);
+        t.IsBackground = true;
+        t.Start();
+        Envoyer("PRET");
+      };
+      Application.Run(f);
+    } catch (Exception e) {
+      Envoyer("ERREUR\t" + Une(e.ToString()));
+    }
   }
+  static string Une(string s) { return s.Replace("\r", " ").Replace("\n", " | ").Replace("\t", " "); }
   static Font P(float taille, FontStyle style) { return new Font("Segoe UI", taille, style); }
   static Label Texte(string s, float taille, Color c, FontStyle style, int x, int y, int l, int h) {
     Label lb = new Label();
@@ -94,7 +100,7 @@ public class CPUI {
     f = new Form();
     f.Text = "CitizenPad Bridge";
     f.BackColor = FOND; f.ForeColor = TEXTE;
-    f.FormBorderStyle = FormBorderStyle.FixedSingle; f.MaximizeBox = false;
+    f.FormBorderStyle = FormBorderStyle.FixedSingle; f.MaximizeBox = false; f.MinimizeBox = true;
     f.StartPosition = FormStartPosition.CenterScreen;
     f.AutoScaleMode = AutoScaleMode.Dpi;
     f.AutoScaleDimensions = new SizeF(96f, 96f);
@@ -157,44 +163,33 @@ public class CPUI {
     // Messages ponctuels
     lblMsg = Texte("", 9.5f, AMBRE, FontStyle.Regular, 0, 0, 420, 40); lblMsg.Margin = new Padding(0, 8, 0, 0); lblMsg.Visible = false;
     racine.Controls.Add(lblMsg);
-    // Pied
-    Panel pied = new Panel(); pied.Size = new Size(420, 32); pied.Margin = new Padding(0, 10, 0, 0);
-    LinkLabel lCompte = Lien(T("Changer de compte", "Switch account"), 0, delegate { Changer(); });
-    LinkLabel lJournal = Lien(T("Journal", "Log"), 150, delegate { Envoyer("JOURNAL"); });
-    LinkLabel lQuitter = Lien(T("Quitter", "Quit"), 350, delegate { Quitter(); });
-    pied.Controls.Add(lCompte); pied.Controls.Add(lJournal); pied.Controls.Add(lQuitter);
+    // Pied : toutes les actions visibles, sans menu caché.
+    Panel pied = new Panel(); pied.Size = new Size(420, 40); pied.Margin = new Padding(0, 12, 0, 4);
+    Button bCompte = Bouton(T("Changer de compte", "Switch account"), PANNEAU, 0, 0, 150, 34);
+    bCompte.Font = P(9.5f, FontStyle.Regular); bCompte.ForeColor = TEXTE;
+    bCompte.Click += delegate { Changer(); };
+    Button bJournal = Bouton(T("Journal", "Log"), PANNEAU, 158, 0, 92, 34);
+    bJournal.Font = P(9.5f, FontStyle.Regular); bJournal.ForeColor = TEXTE;
+    bJournal.Click += delegate { Envoyer("JOURNAL"); };
+    Button bQuitter = Bouton(T("Quitter le Bridge", "Quit the Bridge"), Color.FromArgb(120, 34, 34), 258, 0, 162, 34);
+    bQuitter.Font = P(9.5f, FontStyle.Bold);
+    bQuitter.Click += delegate { Quitter(); };
+    pied.Controls.Add(bCompte); pied.Controls.Add(bJournal); pied.Controls.Add(bQuitter);
     racine.Controls.Add(pied);
+    racine.Controls.Add(Texte(T("Garde cette fenêtre ouverte pendant que tu joues. Tu peux la réduire dans la barre des tâches.",
+      "Keep this window open while you play. You can minimize it to the taskbar."), 8.5f, DOUX, FontStyle.Regular, 0, 0, 420, 34));
     f.AcceptButton = btnValider;
-    // Icône près de l'horloge
-    tray = new NotifyIcon();
-    tray.Icon = icone != null ? icone : SystemIcons.Application;
-    tray.Text = "CitizenPad Bridge";
-    ContextMenuStrip menu = new ContextMenuStrip();
-    menu.Items.Add(T("Ouvrir", "Open"), null, delegate { Montrer(); });
-    menuMaj = new ToolStripMenuItem(T("Installer la mise à jour", "Install the update"), null, delegate { Montrer(); DemanderMaj(); });
-    menuMaj.Visible = false;
-    menu.Items.Add(menuMaj);
-    menu.Items.Add(T("Journal", "Log"), null, delegate { Envoyer("JOURNAL"); });
-    menu.Items.Add(new ToolStripSeparator());
-    menu.Items.Add(T("Quitter le Bridge", "Quit the Bridge"), null, delegate { Quitter(); });
-    tray.ContextMenuStrip = menu;
-    tray.DoubleClick += delegate { Montrer(); };
-    tray.Visible = true;
-    // La croix cache la fenêtre : le Bridge continue, l'icône reste près de l'horloge.
+    // La croix ferme vraiment le Bridge (après confirmation) : un Bridge
+    // caché qu'on oublie, c'est un PC qui accepte encore des touches.
     f.FormClosing += delegate(object s, FormClosingEventArgs e) {
       if (quitter || e.CloseReason != CloseReason.UserClosing) return;
       e.Cancel = true;
-      f.Hide();
-      if (!bulleVue) {
-        bulleVue = true;
-        tray.ShowBalloonTip(6000, "CitizenPad Bridge",
-          T("Le Bridge continue de fonctionner ici. Clic droit sur l'icône pour le quitter.",
-            "The Bridge keeps running here. Right-click the icon to quit."), ToolTipIcon.Info);
-      }
+      Quitter();
     };
   }
   static void Montrer() {
     f.Show();
+    f.TopMost = true; f.TopMost = false;
     if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
     f.Activate();
     try { SetForegroundWindow(f.Handle); } catch { }
@@ -232,7 +227,7 @@ public class CPUI {
     }
     try { f.BeginInvoke(new MethodInvoker(delegate { Fermer(); })); } catch { }
   }
-  static void Fermer() { quitter = true; try { tray.Visible = false; tray.Dispose(); } catch { } Application.Exit(); }
+  static void Fermer() { quitter = true; Application.Exit(); }
   // Node envoie les accents sous la forme \u00e9 : l'entrée de PowerShell ne
   // parle pas UTF-8 sur tous les PC.
   static string Champ(string[] p, int i) {
@@ -254,7 +249,7 @@ public class CPUI {
         else if (code == "appairage") { c = BLEU; titre = T("En attente du code", "Waiting for the code"); }
         else if (code == "erreur") { c = ROUGE; titre = T("Problème", "Problem"); }
         lblPoint.ForeColor = c; lblEtat.Text = titre; lblDetail.Text = Champ(p, 2);
-        tray.Text = ("CitizenPad Bridge · " + titre).Length > 63 ? "CitizenPad Bridge" : "CitizenPad Bridge · " + titre;
+        f.Text = "CitizenPad Bridge · " + titre;
         break;
       }
       case "COMPTEUR":
@@ -270,7 +265,7 @@ public class CPUI {
       case "MAJ": {
         string v = Champ(p, 1);
         bool dispo = v.Length > 0;
-        pnlMaj.Visible = dispo; menuMaj.Visible = dispo;
+        pnlMaj.Visible = dispo;
         if (dispo) {
           lblMaj.Text = "★ " + T("Mise à jour ", "Update ") + v + T(" disponible", " available");
           lblMajNote.Text = Champ(p, 2);
@@ -309,6 +304,9 @@ export function scriptFenetre({ exe, version, cacherConsole, langue }) {
     CODE_FENETRE.trim(),
     '"@',
     `[CPUI]::Run(${q(exe)}, ${q(version)}, ${q(cacherConsole ? '1' : '0')}, ${q(langue)})`,
+    // Fenêtre fermée = PowerShell s'arrête = le Bridge le voit et s'arrête
+    // aussi. Jamais de Bridge invisible qui tourne encore.
+    'exit',
   ].join('\n')
   // PowerShell lit ce script ligne par ligne sur son entrée : une ligne vide
   // au milieu d'un bloc l'interromprait. On les retire toutes. Et les

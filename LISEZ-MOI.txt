@@ -37,15 +37,15 @@ L'installation prend quelques secondes et le Bridge se relance tout seul,
 toujours appaire.
 
 
-LA FENETRE ET L'ICONE PRES DE L'HORLOGE
-=======================================
+LA FENETRE DU BRIDGE
+====================
 
-Fermer la fenetre (la croix) ne coupe pas le Bridge : il continue, et son
-icone reste pres de l'horloge. Clic droit dessus : Ouvrir, Installer la
-mise a jour, Journal, Quitter le Bridge.
+Garde-la ouverte pendant que tu joues (tu peux la reduire dans la barre
+des taches). Tout y est visible : etat de la liaison, mise a jour,
+« Changer de compte », « Journal » et « Quitter le Bridge ».
 
-En bas de la fenetre : « Changer de compte » pour relier ce PC a un autre
-compte CitizenPad.
+La fermer arrete vraiment le Bridge (il te demande confirmation) et
+relache toutes les touches.
 
 
 CE QUE LE BRIDGE FAIT, ET NE FAIT PAS
