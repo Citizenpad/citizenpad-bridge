@@ -30,7 +30,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, unlinkSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, unlinkSync, statSync, renameSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, dirname, basename } from 'node:path'
 import readline from 'node:readline'
@@ -110,16 +110,17 @@ class Fenetre {
         if (quoi === 'CODE') { const r = this.attenteCode; this.attenteCode = null; r?.(reste.join('')); return }
         this.actions[quoi]?.()
       })
-      this.ps.on('exit', () => {
+      this.ps.on('exit', (code) => {
         const etaitOk = this.ok
         this.ok = false
         finir(false)
-        if (etaitOk && !this.fermeture) { noter('FENÊTRE  fermée de façon inattendue'); this.actions.FERMEE?.() }
+        if (etaitOk && !this.fermeture) { noter(`FENÊTRE  fermée de façon inattendue (code ${code})`); this.actions.FERMEE?.() }
       })
       this.ps.stdin.on('error', () => {})
       this.ps.stdin.write(scriptFenetre({
         exe: process.execPath, version: VERSION,
-        cacherConsole: !process.argv.includes('--console'), langue: FR ? 'fr' : 'en',
+        // L'exécutable n'a plus de console à cacher (voir build/fabriquer.mjs).
+        cacherConsole: false, langue: FR ? 'fr' : 'en',
       }))
       // Compilation + ouverture : une à trois secondes d'habitude.
       setTimeout(() => { if (!this.ok) { noter('FENÊTRE  pas de réponse, retour à la console'); try { this.ps.kill() } catch {} finir(false) } }, 30_000)
@@ -464,7 +465,8 @@ class Injecteur {
     return new Promise((resolve, reject) => {
       this.ps = spawn('powershell.exe',
         ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
-        { stdio: ['pipe', 'pipe', 'pipe'] })
+        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      this.ps.stdin.on('error', (e) => noter(`⚠ Entrée PowerShell : ${e.message}`))
 
       const lecteur = readline.createInterface({ input: this.ps.stdout })
       lecteur.on('line', l => {
@@ -986,7 +988,7 @@ async function relancer(avant) {
   const cible = [process.execPath, ...(EXE ? [] : process.argv.slice(1, 2))].map(a => `"${a}"`).join(' ')
   setTimeout(() => {
     spawn('cmd.exe', ['/d', '/c', `start "CitizenPad Bridge" ${cible}`], {
-      detached: true, stdio: 'ignore', windowsVerbatimArguments: true,
+      detached: true, stdio: 'ignore', windowsVerbatimArguments: true, windowsHide: true,
     }).unref()
     setTimeout(() => process.exit(0), 200)
   }, 300)
@@ -1010,6 +1012,9 @@ async function main() {
     console.log('  Cette version ne fonctionne que sous Windows.\n')
     return quitter(1)
   }
+  // Le journal note chaque touche : au-delà de 2 Mo, on repart d'un fichier
+  // neuf (l'ancien est gardé à côté, une génération).
+  try { if (existsSync(JOURNAL) && statSync(JOURNAL).size > 2_000_000) renameSync(JOURNAL, JOURNAL.replace(/\.txt$/, '-ancien.txt')) } catch {}
   noter(`──────── Lancement ${VERSION}${EXE ? ' (.exe)' : ''} ${process.argv.slice(2).join(' ')}`)
 
   // Node n'expose une WebSocket native qu'à partir de la version 22 (la
@@ -1055,6 +1060,16 @@ async function main() {
       fen.actions.JOURNAL = ouvrirJournal
       fen.actions.CHANGER = () => changerDeCompte()
       fen.actions.MAJ = async () => { if (enMaj) return; enMaj = true; if (!(await installerMaj())) enMaj = false }
+      noter('FENÊTRE  ouverte')
+    } else if (EXE) {
+      // L'exécutable n'a pas de console (c'est voulu : plus de fenêtre
+      // noire). Sans fenêtre, le joueur ne verrait rien : on le prévient
+      // avec une simple boîte de message, et on s'arrête.
+      noter('FENÊTRE  impossible à ouvrir : arrêt')
+      await boiteMessage(t(
+        'La fenêtre de CitizenPad Bridge n\'a pas pu s\'ouvrir.\n\nRelance le Bridge. Si ça recommence, écris-nous à contact@citizenpad.com en joignant le fichier :\n' + JOURNAL,
+        'The CitizenPad Bridge window could not open.\n\nRestart the Bridge. If it happens again, write to contact@citizenpad.com and attach this file:\n' + JOURNAL))
+      process.exit(1)
     } else {
       console.log('  (fenêtre indisponible : on reste dans cette console)\n')
     }
@@ -1341,6 +1356,29 @@ async function main() {
 }
 
 let enMaj = false
+
+/** Boîte de message Windows, pour les cas où la fenêtre du Bridge n'existe pas. */
+function boiteMessage(texte) {
+  return new Promise(resolve => {
+    try {
+      const echappe = String(texte).replace(/'/g, "''")
+      const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.MessageBox]::Show('${echappe}', 'CitizenPad Bridge')`],
+        { stdio: 'ignore', windowsHide: true })
+      p.on('exit', resolve); p.on('error', resolve)
+    } catch { resolve() }
+  })
+}
+
+// Rien ne doit disparaître sans laisser de trace dans le journal.
+process.on('uncaughtException', (e) => {
+  noter(`ERREUR non rattrapée : ${e?.stack || e}`)
+  console.error(e)
+  quitter(1, t(`Erreur inattendue : ${e?.message || e}. Relance le Bridge ; si ça recommence, écris-nous avec le journal.`,
+    `Unexpected error: ${e?.message || e}. Restart the Bridge; if it happens again, write to us with the log.`))
+})
+for (const sig of ['SIGHUP', 'SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => noter(`Signal ${sig}`))
+process.on('exit', (code) => noter(`Arrêt du Bridge (code ${code})`))
 
 /** Oublie le compte (garde l'identifiant du PC) et relance un Bridge neuf,
  *  qui demandera un code. */

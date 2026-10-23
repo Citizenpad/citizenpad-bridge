@@ -54,6 +54,10 @@ jobs:
           Write-Host "Réponse : '$sortie' (attendue : '$attendue')"
           if ($sortie -ne $attendue) { exit 1 }
 
+      - name: Essai réel (fenêtre, 15 secondes)
+        shell: pwsh
+        run: ./build/essai-reel.ps1
+
       - name: Installateur (Inno Setup)
         shell: pwsh
         run: |
@@ -89,3 +93,16 @@ jobs:
             --title "CitizenPad Bridge $env:VERSION" `
             --notes "Installateur Windows de CitizenPad Bridge $env:VERSION. Télécharge-le depuis citizenpad.com (Réglages → Bridge)."
           if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Capture d'écran sur la branche « captures »
+        if: always() && github.ref != 'refs/heads/main'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path captures\fenetre.png)) { exit 0 }
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          $f = "fenetre-$env:GITHUB_RUN_ID.png"
+          Copy-Item captures\fenetre.png "$env:RUNNER_TEMP\$f"
+          git fetch origin captures 2>$null
+          if ($LASTEXITCODE -eq 0) { git checkout -B captures origin/captures } else { git checkout --orphan captures; git rm -rf --quiet . }
+          Copy-Item "$env:RUNNER_TEMP\$f" $f
+          git add $f; git commit -m "Capture $env:GITHUB_RUN_ID" --quiet; git push origin captures --quiet

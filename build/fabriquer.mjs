@@ -94,6 +94,24 @@ execFileSync(process.execPath, [
   '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
 ], { stdio: 'inherit' })
 
+// ── Pas de console ─────────────────────────────────────────────────────────
+// Un exécutable « console » ouvre une fenêtre noire à chaque lancement. On le
+// marque « application Windows » (sous-système GUI) : plus de fenêtre noire,
+// seule la fenêtre du Bridge apparaît. Node le gère : sans console, ses
+// sorties partent simplement dans le vide (le journal, lui, est écrit).
+// Le champ Subsystem est à l'octet 68 de l'en-tête optionnel PE.
+{
+  const octets = readFileSync(exe)
+  const pe = octets.readUInt32LE(0x3c)
+  if (octets.readUInt32LE(pe) !== 0x00004550) throw new Error('En-tête PE introuvable')
+  const champ = pe + 4 + 20 + 68
+  const avant = octets.readUInt16LE(champ)
+  if (avant !== 3 && avant !== 2) throw new Error(`Sous-système inattendu : ${avant}`)
+  octets.writeUInt16LE(2, champ)   // 2 = IMAGE_SUBSYSTEM_WINDOWS_GUI
+  writeFileSync(exe, octets)
+  console.log(`  sous-système : ${avant} → 2 (application Windows, sans console)`)
+}
+
 writeFileSync(join(dist, 'version.txt'), version)
 console.log(`✓ ${exe}`)
 
