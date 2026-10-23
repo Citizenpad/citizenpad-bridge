@@ -66,6 +66,7 @@ Name: "bureau"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:Ad
 
 [Files]
 Source: "..\dist\CitizenPad-Bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\CitizenPad-Bridge-Aide.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENCE.txt"; DestDir: "{app}"; Flags: ignoreversion

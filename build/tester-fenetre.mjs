@@ -1,48 +1,43 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  VÉRIFIE LA FENÊTRE SUR UN VRAI WINDOWS (GitHub Actions)
+//  VÉRIFIE L'AIDE (fenêtre et clavier) SUR UN VRAI WINDOWS (GitHub Actions)
 // ═══════════════════════════════════════════════════════════════════════════
-//  node build/tester-fenetre.mjs compiler   le C# compile-t-il ?
-//  node build/tester-fenetre.mjs ouvrir     la fenêtre s'ouvre-t-elle, et
-//                                           répond-elle au protocole ?
-//  Même chemin qu'en vrai : le script part sur l'entrée de PowerShell.
+//  Ouvre la fenêtre, lui envoie chaque type de message, la ferme. Démarre le
+//  clavier et vérifie qu'il répond READY (sans presser aucune touche).
 // ═══════════════════════════════════════════════════════════════════════════
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
-import { scriptFenetre } from '../fenetre.mjs'
+import { join } from 'node:path'
 
-const mode = process.argv[2] || 'compiler'
-let script = scriptFenetre({ exe: process.execPath, version: '0.0.0', cacherConsole: false, langue: 'fr' })
-if (mode === 'compiler') script = script.replace(/^\[CPUI\]::Run\(.*$/m, 'Write-Output "COMPILE-OK"')
-
-const ps = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'], { stdio: ['pipe', 'pipe', 'pipe'] })
-let erreurs = ''
-ps.stderr.on('data', d => { erreurs += d })
-let sortie = ''
-const echec = (m) => {
-  console.error(`✗ ${m}\n${erreurs}`)
-  // Résumé lisible dans la page de l'exécution (annotations GitHub).
-  const resume = (erreurs || sortie).replace(/\s+/g, ' ').slice(0, 1500)
-  console.log(`::error::${m} :: ${resume}`)
-  try { ps.kill() } catch {}
+const aide = join(process.cwd(), 'dist', 'CitizenPad-Bridge-Aide.exe')
+const echec = (m, details = '') => {
+  console.log(`::error::${m} :: ${String(details).replace(/\s+/g, ' ').slice(0, 1500)}`)
   process.exit(1)
 }
-const minuteur = setTimeout(() => echec('pas de réponse en 90 s'), 90_000)
 
-readline.createInterface({ input: ps.stdout }).on('line', (l) => {
-  console.log(`  ${l}`)
-  sortie += l + '\n'
-  if (l === 'COMPILE-OK') { clearTimeout(minuteur); console.log('✓ La fenêtre compile.'); ps.stdin.end() }
+function essayer(args, surLigne, delai = 30_000) {
+  return new Promise((resolve) => {
+    const p = spawn(aide, args, { stdio: ['pipe', 'pipe', 'pipe'] })
+    let erreurs = ''
+    p.stderr.on('data', d => { erreurs += d })
+    const m = setTimeout(() => echec(`${args[0]} : pas de réponse`, erreurs), delai)
+    readline.createInterface({ input: p.stdout }).on('line', l => { console.log(`  ${args[0]} > ${l}`); surLigne(l, p) })
+    p.on('exit', (code) => {
+      clearTimeout(m)
+      if (erreurs.trim()) echec(`${args[0]} : erreurs (code ${code})`, erreurs)
+      resolve(code)
+    })
+  })
+}
+
+await essayer(['fenetre', '0.0.0', 'fr'], (l, p) => {
+  if (l.startsWith('ERREUR')) echec('fenêtre', l)
   if (l === 'PRET') {
-    for (const m of ['ETAT\tpret\tTest', 'COMPTEUR\t3\tF1', 'MAJ\t9.9.9\tNote \\u00e9\tauto', 'CODE\tdemande', 'CODE\terreur\tRefus\\u00e9', 'MSG\tBonjour'])
-      ps.stdin.write(m + '\n')
-    setTimeout(() => { ps.stdin.write('FIN\n'); setTimeout(() => ps.stdin.end(), 500) }, 1500)
+    for (const m of ['ETAT\tpret\tTest', 'COMPTEUR\t3\tF1', 'MAJ\t9.9.9\tNote \\u00e9\tauto', 'CODE\tdemande', 'CODE\terreur\tRefus\\u00e9', 'MSG\tBonjour', 'TEST'])
+      p.stdin.write(m + '\n')
+    setTimeout(() => p.stdin.write('FIN\n'), 1500)
   }
 })
-ps.on('exit', (code) => {
-  clearTimeout(minuteur)
-  if (mode === 'compiler' && !sortie.includes('COMPILE-OK')) echec(`pas de COMPILE-OK (code ${code})`)
-  if (erreurs.trim()) echec(`PowerShell a signalé des erreurs (code ${code})`)
-  console.log(`✓ PowerShell terminé (code ${code}).`)
-  process.exit(0)
-})
-ps.stdin.write(script)
+console.log('✓ La fenêtre répond.')
+
+await essayer(['clavier'], (l, p) => { if (l === 'READY') p.stdin.end() })
+console.log('✓ Le clavier répond.')

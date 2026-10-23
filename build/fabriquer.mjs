@@ -42,6 +42,33 @@ rmSync(dist, { recursive: true, force: true })
 mkdirSync(dist, { recursive: true })
 
 console.log(`▸ Bridge ${version}`)
+console.log('▸ 0/4 L\'aide : fenêtre et clavier (C#, aide.cs)')
+{
+  // Le compilateur C# livré avec .NET Framework 4 (présent sur tout Windows).
+  const csc = ['Framework64', 'Framework']
+    .map(d => join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', d, 'v4.0.30319', 'csc.exe'))
+    .find(p => existsSync(p))
+  if (!csc) throw new Error('csc.exe introuvable (.NET Framework 4)')
+  // Nom, éditeur et version visibles dans Windows (barre des tâches,
+  // Gestionnaire des tâches, propriétés du fichier).
+  const infos = join(dist, 'aide-infos.cs')
+  writeFileSync(infos, [
+    'using System.Reflection;',
+    '[assembly: AssemblyTitle("CitizenPad Bridge")]',
+    '[assembly: AssemblyProduct("CitizenPad Bridge")]',
+    '[assembly: AssemblyCompany("CitizenPad")]',
+    `[assembly: AssemblyCopyright("© ${new Date().getFullYear()} CitizenPad")]`,
+    `[assembly: AssemblyVersion("${version}.0")]`,
+    `[assembly: AssemblyFileVersion("${version}.0")]`,
+  ].join('\n'), 'utf8')
+  execFileSync(csc, [
+    '/nologo', '/target:winexe', '/optimize+', '/codepage:65001',
+    `/win32icon:${join(racine, 'build', 'icone.ico')}`,
+    `/out:${join(dist, 'CitizenPad-Bridge-Aide.exe')}`,
+    '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
+    join(racine, 'aide.cs'), infos,
+  ], { stdio: 'inherit' })
+}
 console.log('▸ 1/4 Assemblage (esbuild)')
 await build({
   entryPoints: [join(racine, 'bridge.mjs')],

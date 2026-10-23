@@ -9,15 +9,15 @@
 //  Deux processus qui se parlent :
 //
 //    Node        gère la connexion au salon Realtime et la logique
-//    PowerShell  reste ouvert en permanence et injecte les entrées via
-//                l'API Windows SendInput
+//    l'aide      CitizenPad-Bridge-Aide.exe (source : aide.cs), petit
+//                programme Windows qui reste ouvert et injecte les entrées
+//                via l'API SendInput
 //
-//  Pourquoi PowerShell plutôt qu'un module natif : les bibliothèques Node qui
-//  simulent le clavier (robotjs, nut-js) demandent une compilation native, un
-//  compilateur C++ installé, et cassent à chaque nouvelle version de Node.
-//  Ici, zéro dépendance native — le seul paquet nécessaire est le client
-//  Supabase. Et un PowerShell maintenu OUVERT coûte 1 à 3 ms par commande,
-//  là où le relancer à chaque touche en coûterait 200.
+//  Pourquoi un programme à part plutôt qu'un module natif : les bibliothèques
+//  Node qui simulent le clavier (robotjs, nut-js) demandent une compilation
+//  native et cassent à chaque nouvelle version de Node. L'aide est compilée
+//  une fois pour toutes par GitHub Actions, et maintenue OUVERTE : 1 à 3 ms
+//  par commande.
 //
 //  ── SÉCURITÉ ─────────────────────────────────────────────────────────────
 //  La liste blanche plus bas est la vraie barrière. L'application n'appuie
@@ -37,7 +37,7 @@ import readline from 'node:readline'
 import { createServer } from 'node:net'
 import { randomBytes, createHash } from 'node:crypto'
 import { connect as connexionLocale } from 'node:net'
-import { scriptFenetre, ascii } from './fenetre.mjs'
+import { ascii } from './fenetre.mjs'
 
 /**
  * Version de CE Bridge.
@@ -97,8 +97,8 @@ class Fenetre {
       let fini = false
       const finir = (v) => { if (!fini) { fini = true; resolve(v) } }
       try {
-        this.ps = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
-          { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+        // ⚠ Pas de windowsHide ici : Windows démarrerait la fenêtre cachée.
+        this.ps = spawn(cheminAide(), ['fenetre', VERSION, FR ? 'fr' : 'en'], { stdio: ['pipe', 'pipe', 'pipe'] })
       } catch (e) { noter(`FENÊTRE  lancement impossible : ${e.message}`); return finir(false) }
       this.ps.on('error', (e) => { noter(`FENÊTRE  ${e.message}`); finir(false) })
       this.ps.stderr.setEncoding('utf8')
@@ -117,13 +117,7 @@ class Fenetre {
         if (etaitOk && !this.fermeture) { noter(`FENÊTRE  fermée de façon inattendue (code ${code})`); this.actions.FERMEE?.() }
       })
       this.ps.stdin.on('error', () => {})
-      this.ps.stdin.write(scriptFenetre({
-        exe: process.execPath, version: VERSION,
-        // L'exécutable n'a plus de console à cacher (voir build/fabriquer.mjs).
-        cacherConsole: false, langue: FR ? 'fr' : 'en',
-      }))
-      // Compilation + ouverture : une à trois secondes d'habitude.
-      setTimeout(() => { if (!this.ok) { noter('FENÊTRE  pas de réponse, retour à la console'); try { this.ps.kill() } catch {} finir(false) } }, 30_000)
+      setTimeout(() => { if (!this.ok) { noter('FENÊTRE  pas de réponse'); try { this.ps.kill() } catch {} finir(false) } }, 20_000)
     })
   }
 
@@ -139,6 +133,17 @@ class Fenetre {
    *  d'erreur d'un code refusé). */
   demanderCode(afficher) { if (afficher) this.envoyer('CODE', 'demande'); return new Promise(r => { this.attenteCode = r }) }
   fermer() { this.fermeture = true; this.envoyer('FIN') }
+}
+
+/** CitizenPad-Bridge-Aide.exe : la fenêtre et le clavier (source : aide.cs).
+ *  Installé à côté de CitizenPad-Bridge.exe ; en développement, dans dist/. */
+function cheminAide() {
+  const candidats = [
+    process.env.CP_AIDE,
+    join(dirname(process.execPath), 'CitizenPad-Bridge-Aide.exe'),
+    join(process.cwd(), 'dist', 'CitizenPad-Bridge-Aide.exe'),
+  ].filter(Boolean)
+  return candidats.find(c => existsSync(c)) || candidats[candidats.length - 1]
 }
 
 /** La fenêtre, quand elle est ouverte. null en mode console. */
@@ -387,69 +392,8 @@ function analyser(combinaison) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  INJECTION — PowerShell maintenu ouvert
+//  INJECTION — l'aide (aide.cs) maintenue ouverte
 // ═══════════════════════════════════════════════════════════════════════════
-const SCRIPT_PS = `
-$ErrorActionPreference = 'Stop'
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class CP {
-  [StructLayout(LayoutKind.Sequential)]
-  struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
-  [StructLayout(LayoutKind.Sequential)]
-  struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
-  [StructLayout(LayoutKind.Explicit)]
-  struct UNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
-  [StructLayout(LayoutKind.Sequential)]
-  struct INPUT { public uint type; public UNION u; }
-
-  [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint n, INPUT[] p, int cb);
-
-  const uint KEYBOARD = 1, MOUSE = 0;
-  const uint KEYUP = 0x0002, SCANCODE = 0x0008, EXTENDED = 0x0001;
-
-  // Le scan code arrive déjà calculé côté Node, depuis une table QWERTY figée.
-  // Aucune dépendance à la disposition clavier de l'utilisateur.
-  public static void Key(ushort sc, bool up, bool ext) {
-    uint f = SCANCODE;
-    if (up) f |= KEYUP;
-    if (ext) f |= EXTENDED;
-    INPUT[] i = new INPUT[1];
-    i[0].type = KEYBOARD;
-    i[0].u.ki.wVk = 0;
-    i[0].u.ki.wScan = sc;
-    i[0].u.ki.dwFlags = f;
-    SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
-  }
-
-  public static void Mouse(uint flags, uint data) {
-    INPUT[] i = new INPUT[1];
-    i[0].type = MOUSE;
-    i[0].u.mi.dwFlags = flags;
-    i[0].u.mi.mouseData = data;
-    SendInput(1, i, Marshal.SizeOf(typeof(INPUT)));
-  }
-}
-"@
-Write-Output "READY"
-while ($true) {
-  $ligne = [Console]::In.ReadLine()
-  if ($null -eq $ligne) { break }
-  $p = $ligne.Split(' ')
-  try {
-    switch ($p[0]) {
-      'KD' { [CP]::Key([uint16]$p[1], $false, ($p[2] -eq '1')) }
-      'KU' { [CP]::Key([uint16]$p[1], $true,  ($p[2] -eq '1')) }
-      'M1D'{ [CP]::Mouse(0x0002,0) } 'M1U'{ [CP]::Mouse(0x0004,0) }
-      'M2D'{ [CP]::Mouse(0x0008,0) } 'M2U'{ [CP]::Mouse(0x0010,0) }
-      'M3D'{ [CP]::Mouse(0x0020,0) } 'M3U'{ [CP]::Mouse(0x0040,0) }
-      'WU' { [CP]::Mouse(0x0800,120) }
-      'WD' { [CP]::Mouse(0x0800,4294967176) }
-    }
-  } catch { }
-}
-`
 
 class Injecteur {
   constructor() {
@@ -464,10 +408,8 @@ class Injecteur {
 
   demarrer() {
     return new Promise((resolve, reject) => {
-      this.ps = spawn('powershell.exe',
-        ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'],
-        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
-      this.ps.stdin.on('error', (e) => noter(`⚠ Entrée PowerShell : ${e.message}`))
+      this.ps = spawn(cheminAide(), ['clavier'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      this.ps.stdin.on('error', (e) => noter(`⚠ Entrée du clavier : ${e.message}`))
 
       const lecteur = readline.createInterface({ input: this.ps.stdout })
       lecteur.on('line', l => {
@@ -487,30 +429,29 @@ class Injecteur {
       this.ps.on('exit', () => {
         this.pret = false
         if (this.arret) return
-        noter('⚠ PowerShell s\'est arrêté : relance et relâchement des touches')
+        noter('⚠ Le clavier s\'est arrêté : relance et relâchement des touches')
         this.#relancer()
       })
-      this.ps.stdin.write(SCRIPT_PS + '\n')
-      setTimeout(() => { if (!this.pret) reject(new Error('PowerShell ne répond pas.')) }, 12000)
+      setTimeout(() => { if (!this.pret) reject(new Error('le clavier ne répond pas')) }, 12000)
     })
   }
 
   async #relancer() {
     this.relances = (this.relances || 0) + 1
     if (this.relances > 5) {
-      console.log('\n  ⚠ PowerShell s\'arrête en boucle. Relance le Bridge.\n')
-      noter('⚠ Trop de relances PowerShell, abandon')
+      console.log('\n  ⚠ Le clavier s\'arrête en boucle. Relance le Bridge.\n')
+      noter('⚠ Trop de relances du clavier, abandon')
       return
     }
     try {
       await new Promise(r => setTimeout(r, 300))
       await this.demarrer()
       this.toutRelacher()
-      noter('PowerShell relancé, touches relâchées')
+      noter('Clavier relancé, touches relâchées')
       // Une relance réussie remet le compteur à zéro au bout d'une minute.
       setTimeout(() => { this.relances = 0 }, 60_000)
     } catch (e) {
-      noter(`⚠ Relance PowerShell impossible : ${e.message}`)
+      noter(`⚠ Relance du clavier impossible : ${e.message}`)
     }
   }
 
