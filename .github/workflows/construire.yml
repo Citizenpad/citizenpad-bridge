@@ -1,0 +1,85 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  FABRIQUE LE BRIDGE SUR UNE MACHINE WINDOWS DE GITHUB
+# ═══════════════════════════════════════════════════════════════════════════
+#  À chaque envoi de code :
+#    - l'installateur est fabriqué et testé ;
+#    - il est déposé dans « Artifacts » de l'exécution (onglet Actions),
+#      pour l'essayer sur un vrai PC avant de le publier.
+#
+#  Sur la branche main SEULEMENT, et si cette version n'existe pas encore :
+#    - une « Release » vX.Y.Z est publiée avec l'installateur et son
+#      empreinte. C'est là que le site et les Bridges vont le chercher.
+#
+#  Pour publier une correction : monter la version (package.json ET
+#  bridge.mjs), fusionner sur main, puis mettre le même numéro dans
+#  VERSION_BRIDGE du site (app/api/version/route.ts).
+# ═══════════════════════════════════════════════════════════════════════════
+name: Construire le Bridge
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dépendances
+        run: npm ci --no-audit --no-fund
+
+      - name: Exécutable (Node SEA)
+        run: npm run fabriquer
+
+      - name: L'exécutable démarre-t-il ?
+        shell: pwsh
+        run: |
+          $sortie = (& dist\CitizenPad-Bridge.exe --version | Out-String).Trim()
+          $attendue = (Get-Content dist\version.txt).Trim()
+          Write-Host "Réponse : '$sortie' (attendue : '$attendue')"
+          if ($sortie -ne $attendue) { exit 1 }
+
+      - name: Installateur (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $v = (Get-Content dist\version.txt).Trim()
+          & $iscc "/DVersion=$v" build\installateur.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $h = (Get-FileHash dist\CitizenPad-Bridge-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("dist\CitizenPad-Bridge-Setup.exe.sha256", "$h  CitizenPad-Bridge-Setup.exe")
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Get-Item dist\CitizenPad-Bridge-Setup.exe | Select-Object Name, Length
+
+      - name: Dépôt pour essai
+        uses: actions/upload-artifact@v4
+        with:
+          name: CitizenPad-Bridge-${{ env.VERSION }}-${{ github.ref_name }}
+          path: |
+            dist/CitizenPad-Bridge-Setup.exe
+            dist/CitizenPad-Bridge-Setup.exe.sha256
+
+      - name: Publication (main uniquement)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "v$env:VERSION" *> $null
+          if ($LASTEXITCODE -eq 0) { Write-Host "v$env:VERSION existe déjà : rien à publier."; exit 0 }
+          gh release create "v$env:VERSION" `
+            dist/CitizenPad-Bridge-Setup.exe `
+            dist/CitizenPad-Bridge-Setup.exe.sha256 `
+            --title "CitizenPad Bridge $env:VERSION" `
+            --notes "Installateur Windows de CitizenPad Bridge $env:VERSION. Télécharge-le depuis citizenpad.com (Réglages → Bridge)."
+          if ($LASTEXITCODE -ne 0) { exit 1 }

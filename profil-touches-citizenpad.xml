@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ActionMaps version="1" optionsVersion="2" rebindVersion="2" profileName="CitizenPad">
+ <CustomisationUIHeader label="CitizenPad" description="Touches CitizenPad Button Box" image="">
+  <devices>
+   <keyboard instance="1"/>
+   <mouse instance="1"/>
+  </devices>
+  <categories/>
+ </CustomisationUIHeader>
+ <options type="keyboard" instance="1"/>
+ <modifiers/>
+ <actionmap name="seat_general">
+  <action name="v_eject">
+   <rebind input="kb1_rctrl+y"/>
+  </action>
+  <action name="v_set_flight_mode">
+   <rebind input="kb1_rctrl+a"/>
+  </action>
+  <action name="v_set_guns_mode">
+   <rebind input="kb1_ralt+rshift+j"/>
+  </action>
+  <action name="v_set_mining_mode">
+   <rebind input="kb1_lshift+o"/>
+  </action>
+  <action name="v_set_missile_mode">
+   <rebind input="kb1_rshift+j"/>
+  </action>
+  <action name="v_set_quantum_mode">
+   <rebind input="kb1_b"/>
+  </action>
+  <action name="v_set_refuel_mode">
+   <rebind input="kb1_lshift+lctrl+o"/>
+  </action>
+  <action name="v_set_salvage_mode">
+   <rebind input="kb1_lctrl+o"/>
+  </action>
+  <action name="v_set_scan_mode">
+   <rebind input="kb1_rshift+v"/>
+  </action>
+  <action name="v_toggle_guns_mode">
+   <rebind input="kb1_ralt+rshift+j"/>
+  </action>
+  <action name="v_toggle_missile_mode">
+   <rebind input="kb1_rshift+j"/>
+  </action>
+  <action name="v_toggle_quantum_mode">
+   <rebind input="kb1_b"/>
+  </action>
+ </actionmap>
+ <actionmap name="spaceship_general">
+  <action name="v_close_all_doors">
+   <rebind input="kb1_ralt+rctrl+d"/>
+  </action>
+  <action name="v_lock_all_doors">
+   <rebind input="kb1_rctrl+l"/>
+  </action>
+  <action name="v_open_all_doors">
+   <rebind input="kb1_rctrl+d"/>
+  </action>
+  <action name="v_unlock_all_doors">
+   <rebind input="kb1_ralt+rctrl+l"/>
+  </action>
+ </actionmap>
+ <actionmap name="spaceship_movement">
+  <action name="v_ifcs_gsafe_toggle">
+   <rebind input="kb1_rctrl+rshift+g"/>
+  </action>
+  <action name="v_ifcs_vector_decoupling_toggle">
+   <rebind input="kb1_rctrl+rshift+c"/>
+  </action>
+  <action name="v_deploy_landing_system">
+   <rebind input="kb1_rctrl+n"/>
+  </action>
+  <action name="v_ifcs_speed_limiter_off">
+   <rebind input="kb1_ralt+rctrl+s"/>
+  </action>
+  <action name="v_ifcs_speed_limiter_on">
+   <rebind input="kb1_rctrl+s"/>
+  </action>
+  <action name="v_ifcs_throttle_set_normal">
+   <rebind input="kb1_ralt+rshift+c"/>
+  </action>
+  <action name="v_ifcs_throttle_set_sticky">
+   <rebind input="kb1_rshift+c"/>
+  </action>
+  <action name="v_ifcs_toggle_esp">
+   <rebind input="kb1_rctrl+e"/>
+  </action>
+  <action name="v_retract_landing_system">
+   <rebind input="kb1_ralt+rctrl+n"/>
+  </action>
+  <action name="v_strafe_longitudinal_invert">
+   <rebind input="kb1_rctrl+mwheel_up"/>
+  </action>
+  <action name="v_transform_deploy">
+   <rebind input="kb1_rctrl+x"/>
+  </action>
+  <action name="v_transform_retract">
+   <rebind input="kb1_ralt+rctrl+x"/>
+  </action>
+  <action name="v_vtol_off">
+   <rebind input="kb1_ralt+rctrl+k"/>
+  </action>
+  <action name="v_vtol_on">
+   <rebind input="kb1_rctrl+k"/>
+  </action>
+ </actionmap>
+ <actionmap name="spaceship_missiles">
+  <action name="v_weapon_decrease_max_missiles">
+   <rebind input="kb1_lshift+g"/>
+  </action>
+ </actionmap>
+ <actionmap name="spaceship_defensive">
+  <action name="v_shield_raise_level_back">
+   <rebind input="kb1_lshift+s"/>
+  </action>
+  <action name="v_shield_raise_level_down">
+   <rebind input="kb1_lshift+x"/>
+  </action>
+  <action name="v_shield_raise_level_forward">
+   <rebind input="kb1_lshift+w"/>
+  </action>
+  <action name="v_shield_raise_level_left">
+   <rebind input="kb1_lshift+a"/>
+  </action>
+  <action name="v_shield_raise_level_right">
+   <rebind input="kb1_lshift+d"/>
+  </action>
+  <action name="v_shield_raise_level_up">
+   <rebind input="kb1_lshift+z"/>
+  </action>
+  <action name="v_shield_reset_level">
+   <rebind input="kb1_lshift+c"/>
+  </action>
+ </actionmap>
+ <actionmap name="spaceship_power">
+  <action name="v_power_set_off">
+   <rebind input="kb1_ralt+rctrl+u"/>
+  </action>
+  <action name="v_power_set_on">
+   <rebind input="kb1_rctrl+u"/>
+  </action>
+  <action name="v_power_set_shields_off">
+   <rebind input="kb1_ralt+rctrl+o"/>
+  </action>
+  <action name="v_power_set_shields_on">
+   <rebind input="kb1_rctrl+o"/>
+  </action>
+  <action name="v_power_set_thrusters_off">
+   <rebind input="kb1_ralt+rctrl+i"/>
+  </action>
+  <action name="v_power_set_thrusters_on">
+   <rebind input="kb1_rctrl+i"/>
+  </action>
+  <action name="v_power_set_weapons_off">
+   <rebind input="kb1_ralt+rctrl+p"/>
+  </action>
+  <action name="v_power_set_weapons_on">
+   <rebind input="kb1_rctrl+p"/>
+  </action>
+ </actionmap>
+</ActionMaps>

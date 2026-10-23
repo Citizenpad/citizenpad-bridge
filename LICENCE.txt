@@ -1,0 +1,44 @@
+LICENCE D'UTILISATION - CITIZENPAD BRIDGE
+=========================================
+
+Copyright (c) 2026 CitizenPad. Tous droits reserves.
+
+
+CE QUI T'EST ACCORDE
+====================
+
+Le droit d'installer et d'utiliser CitizenPad Bridge sur tes propres
+ordinateurs, gratuitement, pour te connecter au service CitizenPad avec ton
+compte.
+
+
+CE QUI N'EST PAS ACCORDE
+========================
+
+    la redistribution du programme, modifie ou non
+    la revente, la location ou la mise a disposition payante
+    la reutilisation du code dans un autre produit
+    le retrait des mentions de copyright
+
+Le code est lisible parce que nous avons choisi la transparence : un
+programme qui simule des touches doit pouvoir etre verifie. Lisible ne veut
+pas dire libre de droits.
+
+
+ABSENCE DE GARANTIE
+===================
+
+Le programme est fourni "en l'etat", sans garantie d'aucune sorte. L'auteur
+ne peut etre tenu responsable des dommages resultant de son utilisation.
+
+Tu restes responsable du respect des conditions d'utilisation de Star
+Citizen. CitizenPad est un projet independant, sans lien avec Cloud Imperium
+Games.
+
+
+DROIT APPLICABLE
+================
+
+Cette licence est regie par le droit de l'Etat de Georgie, Etats-Unis.
+
+Pour toute demande d'autorisation : contact@citizenpad.com

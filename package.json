@@ -1,0 +1,24 @@
+{
+  "name": "citizenpad-bridge",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Lien entre la Button Box CitizenPad et Star Citizen",
+  "type": "module",
+  "main": "bridge.mjs",
+  "scripts": {
+    "start": "node bridge.mjs",
+    "fabriquer": "node build/fabriquer.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "postject": "1.0.0-alpha.6",
+    "rcedit": "5.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

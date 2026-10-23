@@ -1,0 +1,91 @@
+CITIZENPAD BRIDGE
+=================
+
+Ce programme fait le lien entre ta tablette et ton ordinateur. Quand tu
+appuies sur un bouton dans la Button Box, il presse la vraie touche dans
+Star Citizen.
+
+
+APPAIRAGE, UNE SEULE FOIS
+=========================
+
+    1. Ouvre citizenpad.com sur ta tablette
+    2. Button Box, bouton APPAIRER
+    3. Lance CitizenPad Bridge (menu Demarrer ou Bureau)
+    4. Tape le code a 6 caracteres
+
+Ensuite le Bridge retrouve ta tablette tout seul a chaque demarrage.
+
+
+POURQUOI WINDOWS DEMANDE L'AUTORISATION
+=======================================
+
+Le Bridge demande les droits administrateur au lancement. Ce n'est pas une
+coquetterie : Windows refuse qu'un programme ordinaire envoie des touches a
+un jeu lance en administrateur, ce qui est le cas de Star Citizen.
+
+Sans cette elevation, tes boutons ne feraient rien.
+
+
+MISES A JOUR
+============
+
+Le Bridge ne se met JAMAIS a jour tout seul : une coupure en plein combat
+serait pire que tout. Quand une nouvelle version existe :
+
+    la fenetre du Bridge l'annonce : touche U pour l'installer
+    ta tablette affiche un bouton « Installer » et un bouton « Plus tard »
+
+Tu choisis ton moment. L'installation prend quelques secondes et le Bridge
+se relance tout seul, toujours appaire.
+
+
+TOUCHES DE LA FENETRE DU BRIDGE
+===============================
+
+    U   installer la mise a jour
+    A   appairer ce PC a un autre compte
+    Q   quitter (relache toutes les touches)
+
+
+CE QUE LE BRIDGE FAIT, ET NE FAIT PAS
+=====================================
+
+IL FAIT :
+    recevoir des commandes depuis ta tablette, via ton compte
+    presser les touches correspondantes, choisies dans une liste fixe
+
+IL NE FAIT PAS :
+    lire la memoire du jeu
+    modifier un fichier du jeu
+    enregistrer ce que tu tapes
+    acceder a un autre programme
+    envoyer quoi que ce soit ailleurs que vers ton propre compte
+
+Son code est public et lisible :
+    https://github.com/Citizenpad/citizenpad-bridge
+
+
+EN CAS DE PROBLEME
+==================
+
+WINDOWS AFFICHE « WINDOWS A PROTEGE VOTRE ORDINATEUR »
+    Clique sur « Informations complementaires », puis « Executer quand
+    meme ». Cet avertissement s'affiche pour les programmes recents qui
+    n'ont pas encore de reputation aupres de Microsoft.
+
+LES BOUTONS NE FONT RIEN DANS LE JEU
+    Verifie que le Bridge affiche « Connecte au salon ».
+    Verifie que Star Citizen a le focus, la fenetre active.
+    Verifie tes touches sur citizenpad.com, Reglages, Mes touches.
+
+UNE TOUCHE RESTE ENFONCEE
+    Ferme le Bridge, il relache tout en quittant. Si le probleme revient,
+    ecris nous : c'est un defaut, pas une fatalite.
+
+JOURNAL D'ERREURS
+    Il se trouve dans   %USERPROFILE%\.citizenpad\journal.txt
+    Joins le a ton message, il nous fera gagner du temps.
+
+DESINSTALLER
+    Parametres de Windows, Applications, CitizenPad Bridge, Desinstaller.
