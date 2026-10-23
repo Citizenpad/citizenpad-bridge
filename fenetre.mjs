@@ -314,7 +314,11 @@ export function scriptFenetre({ exe, version, cacherConsole, langue }) {
   // au milieu d'un bloc l'interromprait. On les retire toutes. Et les
   // caractères non ASCII deviennent \uXXXX, que C# comprend : l'entrée de
   // PowerShell n'est pas en UTF-8 sur tous les PC.
-  return ascii(script.split('\n').filter(l => l.trim()).join('\n')) + '\n'
+  //
+  // ⚠ Et il FAUT une ligne vide à la fin : en lecture sur l'entrée,
+  // PowerShell accumule un bloc de plusieurs lignes et ne l'exécute qu'en
+  // recevant une ligne vide (comme l'invite « >> » de la console).
+  return ascii(script.split('\n').filter(l => l.trim()).join('\n')) + '\n\n'
 }
 
 /** « é » → « \u00e9 ». Utilisé aussi pour chaque message envoyé à la fenêtre. */
