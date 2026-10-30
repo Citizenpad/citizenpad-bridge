@@ -77,6 +77,12 @@
   <action name="v_ifcs_speed_limiter_on">
    <rebind input="kb1_rctrl+s"/>
   </action>
+  <action name="v_ifcs_speed_limiter_increment">
+   <rebind input="kb1_rctrl+equals"/>
+  </action>
+  <action name="v_ifcs_speed_limiter_decrement">
+   <rebind input="kb1_rctrl+minus"/>
+  </action>
   <action name="v_ifcs_throttle_set_normal">
    <rebind input="kb1_ralt+rshift+c"/>
   </action>
@@ -88,9 +94,6 @@
   </action>
   <action name="v_retract_landing_system">
    <rebind input="kb1_ralt+rctrl+n"/>
-  </action>
-  <action name="v_strafe_longitudinal_invert">
-   <rebind input="kb1_rctrl+mwheel_up"/>
   </action>
   <action name="v_transform_deploy">
    <rebind input="kb1_rctrl+x"/>
