@@ -45,7 +45,7 @@ import { ascii } from './fenetre.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.4.0'
+const VERSION = '1.5.0'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -363,6 +363,8 @@ const SC = {
   SEMICOLON:0x27, APOSTROPHE:0x28, COMMA:0x33, PERIOD:0x34, SLASH:0x35,
   LBRACKET:0x1A, RBRACKET:0x1B, BACKSLASH:0x2B, MINUS:0x0C, EQUALS:0x0D,
   GRAVE:0x29,
+  // Pavé numérique (Verr Num indifférent : le jeu lit la position)
+  NP0:0x52, NP1:0x4F, NP2:0x50, NP3:0x51, NP4:0x4B, NP5:0x4C, NP6:0x4D, NP7:0x47, NP8:0x48, NP9:0x49,
   // Divers utiles en vol
   TAB:0x0F, SPACE:0x39, BACKSPACE:0x0E, ESCAPE:0x01,
   // Modificateurs. Le drapeau « étendu » distingue la version droite de la
