@@ -167,7 +167,7 @@
  </actionmap>
  <actionmap name="player">
   <action name="selectUnarmedCombat">
-   <rebind input="kb1_lctrl+6"/>
+   <rebind input="kb1_lalt+6"/>
   </action>
   <action name="select_gadget_pit">
    <rebind input="kb1_5"/>
@@ -235,22 +235,22 @@
    <rebind input="kb1_ralt+9"/>
   </action>
   <action name="emote_cs_forward">
-   <rebind input="kb1_np_5"/>
+   <rebind input="kb1_lalt+lctrl+7"/>
   </action>
   <action name="emote_cs_left">
-   <rebind input="kb1_np_1"/>
+   <rebind input="kb1_ralt+lctrl+7"/>
   </action>
   <action name="emote_cs_no">
-   <rebind input="kb1_np_6"/>
+   <rebind input="kb1_lctrl+6"/>
   </action>
   <action name="emote_cs_right">
-   <rebind input="kb1_np_3"/>
+   <rebind input="kb1_rctrl+lctrl+7"/>
   </action>
   <action name="emote_cs_stop">
-   <rebind input="kb1_np_2"/>
+   <rebind input="kb1_ralt+lalt+7"/>
   </action>
   <action name="emote_cs_yes">
-   <rebind input="kb1_np_4"/>
+   <rebind input="kb1_ralt+rctrl+7"/>
   </action>
   <action name="emote_dance">
    <rebind input="kb1_rctrl+9"/>
