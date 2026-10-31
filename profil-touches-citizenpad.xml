@@ -13,20 +13,20 @@
   <action name="v_eject">
    <rebind input="kb1_rctrl+y"/>
   </action>
+  <action name="v_emergency_exit">
+   <rebind input="kb1_lshift+u"/>
+  </action>
   <action name="v_set_flight_mode">
    <rebind input="kb1_rctrl+a"/>
   </action>
   <action name="v_set_guns_mode">
-   <rebind input="kb1_ralt+rshift+j"/>
+   <rebind input="kb1_ralt+rctrl+j"/>
   </action>
   <action name="v_set_mining_mode">
    <rebind input="kb1_lshift+o"/>
   </action>
   <action name="v_set_missile_mode">
-   <rebind input="kb1_rshift+j"/>
-  </action>
-  <action name="v_set_quantum_mode">
-   <rebind input="kb1_b"/>
+   <rebind input="kb1_rctrl+j"/>
   </action>
   <action name="v_set_refuel_mode">
    <rebind input="kb1_lshift+lctrl+o"/>
@@ -35,16 +35,10 @@
    <rebind input="kb1_lctrl+o"/>
   </action>
   <action name="v_set_scan_mode">
-   <rebind input="kb1_rshift+v"/>
-  </action>
-  <action name="v_toggle_guns_mode">
-   <rebind input="kb1_ralt+rshift+j"/>
-  </action>
-  <action name="v_toggle_missile_mode">
-   <rebind input="kb1_rshift+j"/>
+   <rebind input="kb1_rctrl+v"/>
   </action>
   <action name="v_toggle_quantum_mode">
-   <rebind input="kb1_b"/>
+   <rebind input="kb1_rctrl+b"/>
   </action>
  </actionmap>
  <actionmap name="spaceship_general">
@@ -62,14 +56,20 @@
   </action>
  </actionmap>
  <actionmap name="spaceship_movement">
-  <action name="v_ifcs_gsafe_toggle">
-   <rebind input="kb1_rctrl+rshift+g"/>
-  </action>
-  <action name="v_ifcs_vector_decoupling_toggle">
-   <rebind input="kb1_rctrl+rshift+c"/>
-  </action>
   <action name="v_deploy_landing_system">
    <rebind input="kb1_rctrl+n"/>
+  </action>
+  <action name="v_ifcs_gsafe_off">
+   <rebind input="kb1_ralt+rctrl+g"/>
+  </action>
+  <action name="v_ifcs_gsafe_on">
+   <rebind input="kb1_rctrl+g"/>
+  </action>
+  <action name="v_ifcs_speed_limiter_decrement">
+   <rebind input="kb1_rctrl+minus"/>
+  </action>
+  <action name="v_ifcs_speed_limiter_increment">
+   <rebind input="kb1_rctrl+equals"/>
   </action>
   <action name="v_ifcs_speed_limiter_off">
    <rebind input="kb1_ralt+rctrl+s"/>
@@ -77,20 +77,23 @@
   <action name="v_ifcs_speed_limiter_on">
    <rebind input="kb1_rctrl+s"/>
   </action>
-  <action name="v_ifcs_speed_limiter_increment">
-   <rebind input="kb1_rctrl+equals"/>
-  </action>
-  <action name="v_ifcs_speed_limiter_decrement">
-   <rebind input="kb1_rctrl+minus"/>
-  </action>
   <action name="v_ifcs_throttle_set_normal">
-   <rebind input="kb1_ralt+rshift+c"/>
+   <rebind input="kb1_ralt+lalt+c"/>
   </action>
   <action name="v_ifcs_throttle_set_sticky">
-   <rebind input="kb1_rshift+c"/>
+   <rebind input="kb1_ralt+rctrl+c"/>
   </action>
   <action name="v_ifcs_toggle_esp">
    <rebind input="kb1_rctrl+e"/>
+  </action>
+  <action name="v_ifcs_vector_decoupling_off">
+   <rebind input="kb1_rctrl+c"/>
+  </action>
+  <action name="v_ifcs_vector_decoupling_on">
+   <rebind input="kb1_c"/>
+  </action>
+  <action name="v_master_mode_cycle">
+   <rebind input="kb1_b"/>
   </action>
   <action name="v_retract_landing_system">
    <rebind input="kb1_ralt+rctrl+n"/>
