@@ -167,13 +167,13 @@
  </actionmap>
  <actionmap name="player">
   <action name="selectUnarmedCombat">
-   <rebind input="kb1_ralt+rctrl+4"/>
+   <rebind input="kb1_6"/>
   </action>
   <action name="select_gadget_pit">
    <rebind input="kb1_5"/>
   </action>
   <action name="select_meleeweapon_pit">
-   <rebind input="kb1_lctrl+5"/>
+   <rebind input="kb1_ralt+1"/>
   </action>
   <action name="select_secondary_pit">
    <rebind input="kb1_1"/>
