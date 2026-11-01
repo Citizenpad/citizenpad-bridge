@@ -182,13 +182,13 @@
    <rebind input="kb1_2"/>
   </action>
   <action name="toggleAttachHelmet">
-   <rebind input="kb1_rctrl+mouse3"/>
+   <rebind input="kb1_period"/>
   </action>
   <action name="toggle_flashlight">
    <rebind input="kb1_t"/>
   </action>
   <action name="visor_wipe">
-   <rebind input="kb1_lalt+lshift+mouse3"/>
+   <rebind input="kb1_ralt+period"/>
   </action>
   <action name="weapon_change_firemode">
    <rebind input="kb1_b"/>
