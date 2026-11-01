@@ -66,10 +66,10 @@
    <rebind input="kb1_rctrl+g"/>
   </action>
   <action name="v_ifcs_speed_limiter_decrement">
-   <rebind input="kb1_rctrl+minus"/>
+   <rebind input="kb1_rctrl+mwheel_down"/>
   </action>
   <action name="v_ifcs_speed_limiter_increment">
-   <rebind input="kb1_rctrl+equals"/>
+   <rebind input="kb1_rctrl+mwheel_up"/>
   </action>
   <action name="v_ifcs_speed_limiter_off">
    <rebind input="kb1_ralt+rctrl+s"/>
@@ -167,7 +167,7 @@
  </actionmap>
  <actionmap name="player">
   <action name="selectUnarmedCombat">
-   <rebind input="kb1_lalt+6"/>
+   <rebind input="kb1_ralt+rctrl+4"/>
   </action>
   <action name="select_gadget_pit">
    <rebind input="kb1_5"/>
@@ -196,124 +196,124 @@
  </actionmap>
  <actionmap name="player_emotes">
   <action name="emote_agree">
-   <rebind input="kb1_lctrl+0"/>
+   <rebind input="kb1_lalt+6"/>
   </action>
   <action name="emote_angry">
-   <rebind input="kb1_lalt+0"/>
+   <rebind input="kb1_ralt+6"/>
   </action>
   <action name="emote_atease">
-   <rebind input="kb1_ralt+0"/>
+   <rebind input="kb1_rctrl+6"/>
   </action>
   <action name="emote_attention">
-   <rebind input="kb1_rctrl+0"/>
+   <rebind input="kb1_ralt+lalt+6"/>
   </action>
   <action name="emote_blah">
-   <rebind input="kb1_lalt+lctrl+0"/>
+   <rebind input="kb1_rctrl+lalt+6"/>
   </action>
   <action name="emote_bored">
-   <rebind input="kb1_ralt+lctrl+0"/>
+   <rebind input="kb1_ralt+rctrl+6"/>
   </action>
   <action name="emote_bow">
-   <rebind input="kb1_rctrl+lctrl+0"/>
-  </action>
-  <action name="emote_burp">
-   <rebind input="kb1_ralt+lalt+0"/>
-  </action>
-  <action name="emote_cheer">
-   <rebind input="kb1_rctrl+lalt+0"/>
-  </action>
-  <action name="emote_chicken">
-   <rebind input="kb1_ralt+rctrl+0"/>
-  </action>
-  <action name="emote_clap">
-   <rebind input="kb1_lctrl+9"/>
-  </action>
-  <action name="emote_come">
-   <rebind input="kb1_lalt+9"/>
-  </action>
-  <action name="emote_cry">
-   <rebind input="kb1_ralt+9"/>
-  </action>
-  <action name="emote_cs_forward">
-   <rebind input="kb1_lalt+lctrl+7"/>
-  </action>
-  <action name="emote_cs_left">
-   <rebind input="kb1_ralt+lctrl+7"/>
-  </action>
-  <action name="emote_cs_no">
-   <rebind input="kb1_lctrl+6"/>
-  </action>
-  <action name="emote_cs_right">
-   <rebind input="kb1_rctrl+lctrl+7"/>
-  </action>
-  <action name="emote_cs_stop">
-   <rebind input="kb1_ralt+lalt+7"/>
-  </action>
-  <action name="emote_cs_yes">
-   <rebind input="kb1_ralt+rctrl+7"/>
-  </action>
-  <action name="emote_dance">
-   <rebind input="kb1_rctrl+9"/>
-  </action>
-  <action name="emote_disagree">
-   <rebind input="kb1_lalt+lctrl+9"/>
-  </action>
-  <action name="emote_failure">
-   <rebind input="kb1_ralt+lctrl+9"/>
-  </action>
-  <action name="emote_flex">
-   <rebind input="kb1_rctrl+lctrl+9"/>
-  </action>
-  <action name="emote_flirt">
-   <rebind input="kb1_ralt+lalt+9"/>
-  </action>
-  <action name="emote_gasp">
-   <rebind input="kb1_rctrl+lalt+9"/>
-  </action>
-  <action name="emote_gloat">
-   <rebind input="kb1_ralt+rctrl+9"/>
-  </action>
-  <action name="emote_greet">
-   <rebind input="kb1_lctrl+8"/>
-  </action>
-  <action name="emote_laugh">
-   <rebind input="kb1_lalt+8"/>
-  </action>
-  <action name="emote_launch">
-   <rebind input="kb1_ralt+8"/>
-  </action>
-  <action name="emote_point">
-   <rebind input="kb1_rctrl+8"/>
-  </action>
-  <action name="emote_rude">
-   <rebind input="kb1_lalt+lctrl+8"/>
-  </action>
-  <action name="emote_salute">
-   <rebind input="kb1_ralt+lctrl+8"/>
-  </action>
-  <action name="emote_sit">
-   <rebind input="kb1_rctrl+lctrl+8"/>
-  </action>
-  <action name="emote_sleep">
-   <rebind input="kb1_ralt+lalt+8"/>
-  </action>
-  <action name="emote_smell">
-   <rebind input="kb1_rctrl+lalt+8"/>
-  </action>
-  <action name="emote_taunt">
-   <rebind input="kb1_ralt+rctrl+8"/>
-  </action>
-  <action name="emote_threaten">
-   <rebind input="kb1_lctrl+7"/>
-  </action>
-  <action name="emote_wait">
    <rebind input="kb1_lalt+7"/>
   </action>
-  <action name="emote_wave">
+  <action name="emote_burp">
    <rebind input="kb1_ralt+7"/>
   </action>
-  <action name="emote_whistle">
+  <action name="emote_cheer">
    <rebind input="kb1_rctrl+7"/>
+  </action>
+  <action name="emote_chicken">
+   <rebind input="kb1_ralt+lalt+7"/>
+  </action>
+  <action name="emote_clap">
+   <rebind input="kb1_rctrl+lalt+7"/>
+  </action>
+  <action name="emote_come">
+   <rebind input="kb1_ralt+rctrl+7"/>
+  </action>
+  <action name="emote_cry">
+   <rebind input="kb1_lalt+8"/>
+  </action>
+  <action name="emote_cs_forward">
+   <rebind input="kb1_lalt+5"/>
+  </action>
+  <action name="emote_cs_left">
+   <rebind input="kb1_ralt+5"/>
+  </action>
+  <action name="emote_cs_no">
+   <rebind input="kb1_ralt+rctrl+5"/>
+  </action>
+  <action name="emote_cs_right">
+   <rebind input="kb1_rctrl+5"/>
+  </action>
+  <action name="emote_cs_stop">
+   <rebind input="kb1_ralt+lalt+5"/>
+  </action>
+  <action name="emote_cs_yes">
+   <rebind input="kb1_rctrl+lalt+5"/>
+  </action>
+  <action name="emote_dance">
+   <rebind input="kb1_ralt+8"/>
+  </action>
+  <action name="emote_disagree">
+   <rebind input="kb1_rctrl+8"/>
+  </action>
+  <action name="emote_failure">
+   <rebind input="kb1_ralt+lalt+8"/>
+  </action>
+  <action name="emote_flex">
+   <rebind input="kb1_rctrl+lalt+8"/>
+  </action>
+  <action name="emote_flirt">
+   <rebind input="kb1_ralt+rctrl+8"/>
+  </action>
+  <action name="emote_gasp">
+   <rebind input="kb1_lalt+9"/>
+  </action>
+  <action name="emote_gloat">
+   <rebind input="kb1_ralt+9"/>
+  </action>
+  <action name="emote_greet">
+   <rebind input="kb1_rctrl+9"/>
+  </action>
+  <action name="emote_laugh">
+   <rebind input="kb1_ralt+lalt+9"/>
+  </action>
+  <action name="emote_launch">
+   <rebind input="kb1_rctrl+lalt+9"/>
+  </action>
+  <action name="emote_point">
+   <rebind input="kb1_ralt+rctrl+9"/>
+  </action>
+  <action name="emote_rude">
+   <rebind input="kb1_lalt+0"/>
+  </action>
+  <action name="emote_salute">
+   <rebind input="kb1_ralt+0"/>
+  </action>
+  <action name="emote_sit">
+   <rebind input="kb1_rctrl+0"/>
+  </action>
+  <action name="emote_sleep">
+   <rebind input="kb1_ralt+lalt+0"/>
+  </action>
+  <action name="emote_smell">
+   <rebind input="kb1_rctrl+lalt+0"/>
+  </action>
+  <action name="emote_taunt">
+   <rebind input="kb1_ralt+rctrl+0"/>
+  </action>
+  <action name="emote_threaten">
+   <rebind input="kb1_ralt+4"/>
+  </action>
+  <action name="emote_wait">
+   <rebind input="kb1_rctrl+4"/>
+  </action>
+  <action name="emote_wave">
+   <rebind input="kb1_ralt+lalt+4"/>
+  </action>
+  <action name="emote_whistle">
+   <rebind input="kb1_rctrl+lalt+4"/>
   </action>
  </actionmap>
 </ActionMaps>
