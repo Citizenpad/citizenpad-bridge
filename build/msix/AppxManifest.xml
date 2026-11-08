@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PAQUET MICROSOFT STORE (MSIX) DU BRIDGE
+  Fabriqué par GitHub Actions (build/msix/fabriquer-msix.ps1). __VERSION__ est
+  remplacé par la version (x.y.z.0). Microsoft signe le paquet à la
+  publication : pas d'alerte SmartScreen pour qui l'installe depuis le Store.
+
+  ⚠ Identity Name / Publisher / PublisherDisplayName viennent de Partner
+  Center (Gestion des produits > Identité du produit). Ne pas les changer.
+
+  allowElevation : le Bridge demande les droits administrateur (Star Citizen
+  tourne élevé, Windows refuse qu'un programme ordinaire lui envoie des
+  touches). Capacité restreinte : à justifier dans la soumission.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity Name="CitizenPad.CitizenPadBridge"
+            Publisher="CN=10FEFA68-5CD5-4940-A40B-65EEAC4F0890"
+            Version="__VERSION__"
+            ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>CitizenPad Bridge</DisplayName>
+    <PublisherDisplayName>CitizenPad</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+    <Resource Language="fr-FR" />
+    <Resource Language="de-DE" />
+    <Resource Language="es-ES" />
+    <Resource Language="pt-BR" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Bridge" Executable="CitizenPad-Bridge.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="CitizenPad Bridge"
+        Description="Links your CitizenPad Button Box (tablet or phone) to Star Citizen on this PC."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Permet de relancer le Bridge par son nom (un .exe du Store ne se
+             lance pas par son chemin). Voir STORE dans bridge.mjs. -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="CitizenPad-Bridge.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="CitizenPadBridge.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="allowElevation" />
+  </Capabilities>
+</Package>

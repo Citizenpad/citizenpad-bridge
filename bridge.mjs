@@ -45,7 +45,7 @@ import { ascii } from './fenetre.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.5.0'
+const VERSION = '1.5.1'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -54,6 +54,10 @@ const VERSION = '1.5.0'
 // Seule la version .exe sait s'installer une mise à jour : l'autre se contente
 // de l'annoncer.
 const EXE = /citizenpad-bridge\.exe$/i.test(process.execPath)
+// Installé depuis le Microsoft Store (paquet MSIX, dans …\WindowsApps\…) :
+// c'est le Store qui fait les mises à jour, le Bridge n'en cherche pas, et on
+// le relance par son alias (un .exe du Store ne se lance pas par son chemin).
+const STORE = EXE && /\\WindowsApps\\/i.test(process.execPath)
 
 // ── Le site auquel il parle ──────────────────────────────────────────────────
 // citizenpad.com par défaut. La version de test du site donne des codes
@@ -181,6 +185,7 @@ function plusRecente(v, ref) {
 let maj = null   // { version, note }
 
 async function chercherMaj() {
+  if (STORE) return (maj = null)
   try {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), 5000)
@@ -929,7 +934,8 @@ function appliquerSite(conf) {
 //  Bridge une vraie fenêtre où l'on peut taper (le code d'appairage).
 async function relancer(avant) {
   await avant?.()
-  const cible = [process.execPath, ...(EXE ? [] : process.argv.slice(1, 2))].map(a => `"${a}"`).join(' ')
+  const cible = STORE ? 'CitizenPadBridge.exe'
+    : [process.execPath, ...(EXE ? [] : process.argv.slice(1, 2))].map(a => `"${a}"`).join(' ')
   setTimeout(() => {
     spawn('cmd.exe', ['/d', '/c', `start "CitizenPad Bridge" ${cible}`], {
       detached: true, stdio: 'ignore', windowsVerbatimArguments: true, windowsHide: true,
