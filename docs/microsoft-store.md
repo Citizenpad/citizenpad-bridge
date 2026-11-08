@@ -65,11 +65,25 @@ https://partner.microsoft.com/dashboard → Apps et jeux → CitizenPad Bridge �
 ## 3. Fiche du Store (Store listings)
 
 Ajouter les langues : anglais (par défaut), français, allemand, espagnol,
-portugais (Brésil). Captures d'écran (1920×1080) : dans le dossier envoyé par
-Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
+portugais (Brésil). Pour **chaque** langue, remplir les champs ci-dessous.
+
+Champs communs à toutes les langues :
+- **Captures d'écran** (1920×1080) : 1_bridge, 2_button_box, 3_crew, 4_trade.
+- **Logo** : `build/icone.png` ; affiche 9:16, carré 1:1, image 16:9 sans texte
+  (`hero_16x9_3840x2160.png`, elle place la bande-annonce en haut de la fiche).
+- **Bande-annonce** : `bande_annonce_<langue>.mp4` + miniature
+  `miniature_<langue>.png` (1920×1080, une différente par langue). 73 s :
+  Microsoft conseille 60 s maximum, ce n'est pas obligatoire. Les écrans
+  filmés sont en version démo, en anglais ; seuls les sous-titres changent.
+- **Copyright et marque** : `© 2026 CitizenPad`
+- **Développé par** : `CitizenPad`
+- Champs facultatifs vides : notes de version (1re version), licences tierces,
+  « Ce que les utilisateurs doivent savoir ».
 
 ### English
-**Short description** (field « Short description »):
+**Trailer title:** CitizenPad, the Star Citizen companion
+
+**Short description:**
 > Turn your tablet or phone into a button box for Star Citizen.
 
 **Description:**
@@ -91,16 +105,18 @@ Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
 > Fan project, not affiliated with Cloud Imperium Games. Star Citizen® is a
 > trademark of Cloud Imperium Rights LLC.
 
-**Features** (one per line):
+**Features:**
 > Your tablet or phone as a Star Citizen button box
 > Pair once, then it reconnects by itself
 > Uses your own key bindings
 > Keys released automatically if the connection drops
 > Free and open source
 
-**Keywords:** Star Citizen, button box, tablet, companion, CitizenPad, keybinds, HOTAS
+**Keywords:** Star Citizen · button box · tablet · companion · CitizenPad · keybinds · HOTAS
 
 ### Français
+**Titre de la bande-annonce :** CitizenPad, le compagnon de Star Citizen
+
 **Description courte :**
 > Ta tablette ou ton téléphone devient une button box pour Star Citizen.
 
@@ -124,7 +140,18 @@ Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
 > Projet de fan, sans lien avec Cloud Imperium Games. Star Citizen® est une
 > marque de Cloud Imperium Rights LLC.
 
+**Fonctionnalités :**
+> Ta tablette ou ton téléphone en button box pour Star Citizen
+> Appairage une seule fois, reconnexion automatique
+> Utilise tes propres touches
+> Touches relâchées automatiquement si la connexion coupe
+> Gratuit et open source
+
+**Mots-clés :** Star Citizen · button box · tablette · compagnon · CitizenPad · touches · HOTAS
+
 ### Deutsch
+**Trailer-Titel:** CitizenPad, der Begleiter für Star Citizen
+
 **Kurzbeschreibung:**
 > Dein Tablet oder Handy wird zur Button Box für Star Citizen.
 
@@ -142,10 +169,25 @@ Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
 > • Tasten werden automatisch losgelassen, wenn die Verbindung abbricht.
 > • Quellcode öffentlich.
 >
+> CitizenPad bietet außerdem Hilfen für Handel und Bergbau sowie das Citizen
+> Syndicate: ein Job Board, um eine Crew zu finden und in übersetzten Sätzen zu
+> sprechen.
+>
 > Fanprojekt, nicht mit Cloud Imperium Games verbunden. Star Citizen® ist eine
 > Marke von Cloud Imperium Rights LLC.
 
+**Funktionen:**
+> Dein Tablet oder Handy als Button Box für Star Citizen
+> Einmal koppeln, danach verbindet es sich selbst
+> Nutzt deine eigene Tastenbelegung
+> Tasten werden losgelassen, wenn die Verbindung abbricht
+> Kostenlos und Open Source
+
+**Suchbegriffe:** Star Citizen · Button Box · Tablet · Begleiter · CitizenPad · Tastenbelegung · HOTAS
+
 ### Español
+**Título del tráiler:** CitizenPad, el compañero de Star Citizen
+
 **Descripción corta:**
 > Tu tableta o tu móvil se convierte en una button box para Star Citizen.
 
@@ -162,10 +204,25 @@ Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
 > • Las teclas se sueltan solas si se corta la conexión.
 > • Código fuente público.
 >
+> CitizenPad también ofrece ayudas para comercio y minería, y el Citizen
+> Syndicate: un Job board para encontrar tripulación y hablar con frases
+> traducidas.
+>
 > Proyecto de fans, sin relación con Cloud Imperium Games. Star Citizen® es una
 > marca de Cloud Imperium Rights LLC.
 
+**Características:**
+> Tu tableta o móvil como button box para Star Citizen
+> Se empareja una vez y luego se reconecta solo
+> Usa tus propias teclas
+> Teclas soltadas automáticamente si se corta la conexión
+> Gratis y de código abierto
+
+**Palabras clave:** Star Citizen · button box · tableta · compañero · CitizenPad · teclas · HOTAS
+
 ### Português (Brasil)
+**Título do trailer:** CitizenPad, o companheiro do Star Citizen
+
 **Descrição curta:**
 > Seu tablet ou celular vira uma button box para Star Citizen.
 
@@ -182,8 +239,21 @@ Claude (1_bridge, 2_button_box, 3_crew, 4_trade). Logo : `build/icone.png`.
 > • As teclas são soltas automaticamente se a conexão cair.
 > • Código-fonte público.
 >
+> O CitizenPad também traz ajuda para comércio e mineração, e o Citizen
+> Syndicate: um Job board para achar uma tripulação e falar com frases
+> traduzidas.
+>
 > Projeto de fã, sem vínculo com a Cloud Imperium Games. Star Citizen® é uma
 > marca da Cloud Imperium Rights LLC.
+
+**Recursos:**
+> Seu tablet ou celular como button box para Star Citizen
+> Pareie uma vez, depois ele reconecta sozinho
+> Usa as suas próprias teclas
+> Teclas soltas automaticamente se a conexão cair
+> Grátis e de código aberto
+
+**Palavras-chave:** Star Citizen · button box · tablet · companheiro · CitizenPad · teclas · HOTAS
 
 ## 4. Après l'acceptation
 - Sur le site (page Installation) : badge « Disponible sur Microsoft Store »
