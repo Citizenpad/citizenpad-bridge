@@ -24,6 +24,11 @@ using System.Threading;
 using System.Runtime.InteropServices;
 public class CPUI {
   [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  // Identifiant de l'application pour la barre des tâches : le même que celui
+  // du raccourci du menu Démarrer (installateur). Windows épingle alors CE
+  // raccourci, qui lance CitizenPad-Bridge.exe, et non l'aide. Aucun programme
+  // n'en démarre un autre (ce qui inquiète les antivirus).
+  [DllImport("shell32.dll")] static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string id);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
   // Couleurs du logo et du site : fond clair, bleu CitizenPad, argent.
   static readonly Color FOND = Color.FromArgb(238, 242, 246);
@@ -49,6 +54,7 @@ public class CPUI {
   public static void Run(string exe, string version, string langue) {
     fr = langue == "fr";
     try { SetProcessDPIAware(); } catch { }
+    try { SetCurrentProcessExplicitAppUserModelID("CitizenPad.Bridge"); } catch { }
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
     // Toute erreur est renvoyée au Bridge, qui l'écrit dans son journal.
@@ -389,22 +395,6 @@ public static class Programme {
       CPUI.Run(System.Reflection.Assembly.GetExecutingAssembly().Location,
         args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "fr");
       return 0;
-    }
-    // Sans argument : lancé à la main, le plus souvent depuis l'icône
-    // ÉPINGLÉE dans la barre des tâches. La fenêtre du Bridge appartient à
-    // l'aide, donc Windows épingle l'aide et non CitizenPad-Bridge.exe. On
-    // lance alors le vrai Bridge, installé à côté.
-    if (mode == "") {
-      try {
-        string dossier = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-        string bridge = System.IO.Path.Combine(dossier, "CitizenPad-Bridge.exe");
-        if (System.IO.File.Exists(bridge)) {
-          System.Diagnostics.ProcessStartInfo si = new System.Diagnostics.ProcessStartInfo(bridge);
-          si.WorkingDirectory = dossier; si.UseShellExecute = true;
-          System.Diagnostics.Process.Start(si);
-          return 0;
-        }
-      } catch { }
     }
     Console.Error.WriteLine("Usage : clavier | fenetre <version> <fr|en>");
     return 2;

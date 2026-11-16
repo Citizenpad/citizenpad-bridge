@@ -73,10 +73,10 @@ Source: "..\LICENCE.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\profil-touches-citizenpad.xml"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\CitizenPad Bridge"; Filename: "{app}\CitizenPad-Bridge.exe"
+Name: "{autoprograms}\CitizenPad Bridge"; Filename: "{app}\CitizenPad-Bridge.exe"; AppUserModelID: "CitizenPad.Bridge"
 Name: "{autoprograms}\CitizenPad\{cm:Lisez}"; Filename: "{app}\LISEZ-MOI.txt"
 Name: "{autoprograms}\CitizenPad\{cm:Profil}"; Filename: "{app}"
-Name: "{autodesktop}\CitizenPad Bridge"; Filename: "{app}\CitizenPad-Bridge.exe"; Tasks: bureau
+Name: "{autodesktop}\CitizenPad Bridge"; Filename: "{app}\CitizenPad-Bridge.exe"; Tasks: bureau; AppUserModelID: "CitizenPad.Bridge"
 
 [Run]
 ; shellexec : lancement comme un double-clic (le Bridge tourne sans droits
