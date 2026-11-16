@@ -79,7 +79,7 @@ Name: "{autoprograms}\CitizenPad\{cm:Profil}"; Filename: "{app}"
 Name: "{autodesktop}\CitizenPad Bridge"; Filename: "{app}\CitizenPad-Bridge.exe"; Tasks: bureau
 
 [Run]
-; shellexec : le Bridge demande les droits administrateur, seul ShellExecute
-; sait afficher la demande. Sans « skipifsilent », cette ligne s'exécute
+; shellexec : lancement comme un double-clic (le Bridge tourne sans droits
+; administrateur depuis la 1.5.2). Sans « skipifsilent », cette ligne s'exécute
 ; aussi lors d'une mise à jour silencieuse : le Bridge revient tout seul.
 Filename: "{app}\CitizenPad-Bridge.exe"; Description: "{cm:LaunchProgram,CitizenPad Bridge}"; Flags: nowait postinstall shellexec

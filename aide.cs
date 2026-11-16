@@ -390,6 +390,22 @@ public static class Programme {
         args.Length > 1 ? args[1] : "", args.Length > 2 ? args[2] : "fr");
       return 0;
     }
+    // Sans argument : lancé à la main, le plus souvent depuis l'icône
+    // ÉPINGLÉE dans la barre des tâches. La fenêtre du Bridge appartient à
+    // l'aide, donc Windows épingle l'aide et non CitizenPad-Bridge.exe. On
+    // lance alors le vrai Bridge, installé à côté.
+    if (mode == "") {
+      try {
+        string dossier = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+        string bridge = System.IO.Path.Combine(dossier, "CitizenPad-Bridge.exe");
+        if (System.IO.File.Exists(bridge)) {
+          System.Diagnostics.ProcessStartInfo si = new System.Diagnostics.ProcessStartInfo(bridge);
+          si.WorkingDirectory = dossier; si.UseShellExecute = true;
+          System.Diagnostics.Process.Start(si);
+          return 0;
+        }
+      } catch { }
+    }
     Console.Error.WriteLine("Usage : clavier | fenetre <version> <fr|en>");
     return 2;
   }
