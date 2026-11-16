@@ -6,10 +6,11 @@
 //
 //  1. esbuild rassemble bridge.mjs et ses dépendances en UN fichier.
 //  2. Node le transforme en « blob » d'application autonome (SEA).
-//  3. On copie node.exe, on lui donne l'icône, le nom, la version, et la
-//     demande de droits administrateur (indispensable : Star Citizen tourne
-//     élevé, et Windows refuse qu'un programme ordinaire lui envoie des
-//     touches).
+//  3. On copie node.exe, on lui donne l'icône, le nom et la version. Depuis
+//     la 1.5.2 : SANS droits administrateur (asInvoker). Microsoft a refusé
+//     allowElevation au Store (16 nov. 2026), et la fenêtre UAC jaune faisait
+//     fuir les nouveaux venus. À valider en jeu : si Star Citizen tourne en
+//     élevé, Windows (UIPI) bloque les touches d'un programme ordinaire.
 //  4. On injecte le blob dans la copie : c'est le Bridge.
 //  5. Inno Setup emballe le tout dans l'installateur (étape suivante du
 //     workflow, pas ici).
@@ -88,7 +89,7 @@ writeFileSync(join(dist, 'sea-config.json'), JSON.stringify({
 }))
 execFileSync(process.execPath, ['--experimental-sea-config', join(dist, 'sea-config.json')], { stdio: 'inherit' })
 
-console.log('▸ 3/4 Exécutable : icône, nom, version, droits administrateur')
+console.log('▸ 3/4 Exécutable : icône, nom, version, sans droits administrateur')
 const exe = join(dist, 'CitizenPad-Bridge.exe')
 copyFileSync(process.execPath, exe)
 
@@ -103,7 +104,7 @@ await rcedit(exe, {
   icon: join(racine, 'build', 'icone.ico'),
   'file-version': `${version}.0`,
   'product-version': `${version}.0`,
-  'requested-execution-level': 'requireAdministrator',
+  'requested-execution-level': 'asInvoker',
   'version-string': {
     CompanyName: 'CitizenPad',
     FileDescription: 'CitizenPad Bridge',

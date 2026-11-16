@@ -17,16 +17,6 @@ APPAIRAGE, UNE SEULE FOIS
 Ensuite le Bridge retrouve ta tablette tout seul a chaque demarrage.
 
 
-POURQUOI WINDOWS DEMANDE L'AUTORISATION
-=======================================
-
-Le Bridge demande les droits administrateur au lancement. Ce n'est pas une
-coquetterie : Windows refuse qu'un programme ordinaire envoie des touches a
-un jeu lance en administrateur, ce qui est le cas de Star Citizen.
-
-Sans cette elevation, tes boutons ne feraient rien.
-
-
 MISES A JOUR
 ============
 

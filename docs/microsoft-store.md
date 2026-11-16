@@ -38,26 +38,24 @@ https://partner.microsoft.com/dashboard → Apps et jeux → CitizenPad Bridge �
 ### Packages
 - Déposer le `.msix`. Familles d'appareils : **Windows 10/11 Desktop**.
 
-### Justification des capacités restreintes (champ « Submission options » /
-« Restricted capabilities »)
+### Justification des capacités restreintes (« Fonctionnalités restreintes »)
 
-> **runFullTrust**: CitizenPad Bridge is a classic Win32 desktop program
-> (packaged with the MSIX Packaging Tool approach). It needs full trust to run.
->
-> **allowElevation**: CitizenPad Bridge turns a tablet or phone into a button
-> box for the PC game Star Citizen. When the player taps a button on the
-> tablet, the Bridge sends the matching keyboard key to the game with
-> SendInput. Star Citizen runs with administrator privileges, and Windows
-> (UIPI) blocks keyboard input sent by a non-elevated process to an elevated
-> window. The Bridge therefore asks for elevation (UAC) when it starts. It only
-> sends keys that the paired tablet requests, never reads other windows, and
-> does not modify game files. Source code is public:
-> https://github.com/Citizenpad/citizenpad-bridge
+Depuis la 1.5.2, seule `runFullTrust` reste (allowElevation refusé le
+16 nov. 2026 ; le Bridge tourne sans droits administrateur, vérifié en jeu).
+
+> **runFullTrust**: CitizenPad Bridge is a classic Win32 desktop program (a
+> Node.js executable with a small C# helper) packaged as MSIX for the Store.
+> It is not a UWP app and cannot run inside the app container, so it needs
+> runFullTrust to start. It runs with standard user rights (no elevation). It
+> shows a small window, connects over HTTPS/WebSocket to citizenpad.com, and
+> receives button presses from the player's own paired tablet or phone, which
+> it turns into keyboard input for the game. It does not install drivers or
+> services and does not modify any other program or game files.
 
 ### Notes pour la certification (« Notes for certification »)
 
 > The Bridge needs a paired CitizenPad account to do anything. To test without
-> an account: start the Bridge (accept the UAC prompt); the window shows
+> an account: start the Bridge; the window shows
 > "Waiting for the code". That is the expected first-run state. Pairing is
 > done from https://citizenpad.com on a tablet or phone (Button Box › PAIR).
 > No game is required to verify that the app starts and runs.
