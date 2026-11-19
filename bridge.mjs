@@ -1088,6 +1088,8 @@ async function main() {
     noter,
     site: () => SITE,
     dossierProgramme: EXE ? dirname(process.execPath) : join(process.cwd(), 'dist'),
+    commande: (m) => traiterCommande(m),
+    coupure: () => { injecteur.toutRelacher() },
   })
   let abonne = false
   let tentative = 0
@@ -1130,6 +1132,44 @@ async function main() {
     minuteurRetry = setTimeout(connecter, delai)
   }
 
+  // Une touche demandée par la tablette, par le salon ou par le lien direct de NOA.
+  function traiterCommande(payload) {
+    const action = String(payload?.action || '')
+    const touche = String(payload?.key || '')
+    const origine = String(payload?.appareil || '')
+
+    // Seuls les écrans autorisés par le serveur pilotent ce PC.
+    // Exception : un RELÂCHEMENT passe toujours. Si un appareil perd son
+    // autorisation pendant qu'il maintient une touche, refuser son keyup
+    // laisserait la touche collée, le pire défaut possible.
+    if (action !== 'keyup' && !autorisations.autorise(origine)) {
+      autorisations.signaler(origine)
+      noter(`IGNORÉ  ${action} ${touche} (appareil non autorisé : ${origine || 'inconnu'})`)
+      return
+    }
+
+    const a = analyser(touche)
+
+    if (!a) {
+      noter(`REFUSÉ  ${touche}`)
+      console.log(`\n  ⚠ Touche refusée (hors liste blanche) : ${touche}`)
+      return
+    }
+
+    noter(`REÇU  ${action.padEnd(8)} ${touche}`)
+
+    if (action === 'keydown')      injecteur.enfoncerTenu(a)
+    else if (action === 'keyup')   injecteur.relacherTenu(a)
+    else if (action === 'key')     injecteur.frapper(a)
+    else return
+
+    compteur++
+    process.stdout.write(`\r  Commandes transmises : ${compteur}   (dernière : ${touche})        `)
+    // Au plus quatre mises à jour par seconde de la fenêtre.
+    derniereTouche = touche
+    if (!minuteurCompteur) minuteurCompteur = setTimeout(() => { minuteurCompteur = null; fen?.envoyer('COMPTEUR', compteur, derniereTouche) }, 250)
+  }
+
   function connecter() {
     if (canal) { try { db.removeChannel(canal) } catch {} canal = null }
     if (!abonne) montrerEtat('connexion', t('Connexion à ton compte CitizenPad…', 'Connecting to your CitizenPad account…'))
@@ -1163,42 +1203,7 @@ async function main() {
     // de l'écran autorisé est fait dans Noa.recevoir.
     canal.on('broadcast', { event: 'noa_t' }, ({ payload }) => { noa.recevoir(payload) })
 
-    canal.on('broadcast', { event: 'cmd' }, ({ payload }) => {
-      const action = String(payload?.action || '')
-      const touche = String(payload?.key || '')
-      const origine = String(payload?.appareil || '')
-
-      // Seuls les écrans autorisés par le serveur pilotent ce PC.
-      // Exception : un RELÂCHEMENT passe toujours. Si un appareil perd son
-      // autorisation pendant qu'il maintient une touche, refuser son keyup
-      // laisserait la touche collée, le pire défaut possible.
-      if (action !== 'keyup' && !autorisations.autorise(origine)) {
-        autorisations.signaler(origine)
-        noter(`IGNORÉ  ${action} ${touche} (appareil non autorisé : ${origine || 'inconnu'})`)
-        return
-      }
-
-      const a = analyser(touche)
-
-      if (!a) {
-        noter(`REFUSÉ  ${touche}`)
-        console.log(`\n  ⚠ Touche refusée (hors liste blanche) : ${touche}`)
-        return
-      }
-
-      noter(`REÇU  ${action.padEnd(8)} ${touche}`)
-
-      if (action === 'keydown')      injecteur.enfoncerTenu(a)
-      else if (action === 'keyup')   injecteur.relacherTenu(a)
-      else if (action === 'key')     injecteur.frapper(a)
-      else return
-
-      compteur++
-      process.stdout.write(`\r  Commandes transmises : ${compteur}   (dernière : ${touche})        `)
-      // Au plus quatre mises à jour par seconde de la fenêtre.
-      derniereTouche = touche
-      if (!minuteurCompteur) minuteurCompteur = setTimeout(() => { minuteurCompteur = null; fen?.envoyer('COMPTEUR', compteur, derniereTouche) }, 250)
-    })
+    canal.on('broadcast', { event: 'cmd' }, ({ payload }) => traiterCommande(payload))
 
     canal.subscribe(etat => {
       if (etat === 'SUBSCRIBED') {

@@ -93,6 +93,9 @@ export class Noa {
         case 'micros': return this.ecrire('MICROS')
         case 'fermer': return this.fermer()
         case 'rtc': return await this.signal(m)
+        // Une touche de la Button Box arrivée par le lien direct : même traitement
+        // (et mêmes contrôles) que par le salon.
+        case 'cmd': return parLien ? this.o.commande?.(m) : undefined
       }
     } catch (e) {
       this.o.noter(`NOA  erreur (${m.type}) : ${e.message}`)
@@ -397,10 +400,16 @@ export class Noa {
       pc.connectionStateChange.subscribe(s => {
         this.o.noter(`LIEN  ${s}`)
         if (this.pc !== pc) return
-        if (s === 'failed' || s === 'closed') { this.dc = null; this.etat({ lien: 'echec' }) }
+        if (s === 'failed' || s === 'closed' || s === 'disconnected') { if (this.dc) this.o.coupure?.(); this.dc = null; this.etat({ lien: 'echec' }) }
       })
       pc.onDataChannel.subscribe(dc => {
-        dc.stateChanged?.subscribe?.(s => { if (s === 'closed' && this.dc === dc) { this.dc = null; this.etat({ lien: 'coupe' }) } })
+        dc.stateChanged?.subscribe?.(s => {
+          if (s !== 'closed' || this.dc !== dc) return
+          this.dc = null
+          // Une touche maintenue par ce lien ne recevrait jamais son relâchement.
+          this.o.coupure?.()
+          this.etat({ lien: 'coupe' })
+        })
         dc.onMessage.subscribe(d => {
           if (typeof d === 'string') { try { this.recevoir(JSON.parse(d), true) } catch {} return }
           // Son du micro de la tablette : 16 kHz, 16 bits, mono.
