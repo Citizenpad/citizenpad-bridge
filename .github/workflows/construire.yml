@@ -85,7 +85,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build "$src\b-cpu" --config Release --target whisper-server -j 4
           if ($LASTEXITCODE -ne 0) { exit 1 }
-          cmake -S $src -B "$src\b-vk" @commun -DGGML_VULKAN=ON
+          # ggml-vulkan a aussi besoin des en-têtes SPIR-V (absents du SDK minimal).
+          $spv = Join-Path $env:RUNNER_TEMP 'spirv-headers'
+          git clone --quiet --depth 1 --branch vulkan-sdk-1.4.309.0 https://github.com/KhronosGroup/SPIRV-Headers "$spv-src"
+          cmake -S "$spv-src" -B "$spv-b" -DCMAKE_INSTALL_PREFIX="$spv" -DSPIRV_HEADERS_ENABLE_TESTS=OFF
+          cmake --install "$spv-b"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake -S $src -B "$src\b-vk" @commun -DGGML_VULKAN=ON "-DCMAKE_PREFIX_PATH=$spv"
           if ($LASTEXITCODE -ne 0) { exit 1 }
           cmake --build "$src\b-vk" --config Release --target whisper-server -j 4
           if ($LASTEXITCODE -ne 0) { exit 1 }
