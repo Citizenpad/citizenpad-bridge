@@ -60,7 +60,10 @@ public static class Voix {
 
   const int FREQ = 16000;                       // 16 kHz, mono, 16 bits : ce qu'attendent Vosk et Whisper
   static readonly object verrou = new object();
-  static void Envoyer(string l) { lock (verrou) { Console.Out.WriteLine(l); Console.Out.Flush(); } }
+  // Programme sans console (winexe) : Console.OutputEncoding y est interdit. On écrit en
+  // UTF-8 directement sur la sortie que le Bridge lit.
+  static readonly StreamWriter sortie = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+  static void Envoyer(string l) { lock (verrou) { sortie.Write(l); sortie.Write('\n'); sortie.Flush(); } }
   static string Une(string s) { return s.Replace("\r", " ").Replace("\n", " ").Replace("\t", " "); }
 
   // Tout ce que le fil de reconnaissance doit faire passe par cette file :
@@ -100,8 +103,6 @@ public static class Voix {
   const int CALME_FIN = FREQ * 3 / 10;
 
   public static int Main(string[] args) {
-    Console.OutputEncoding = new UTF8Encoding(false);
-    Console.InputEncoding = new UTF8Encoding(false);
     try { vosk_set_log_level(-1); }
     catch (Exception e) { Envoyer("ERREUR\tlibvosk introuvable : " + Une(e.Message)); return 2; }
     Thread fil = new Thread(Reconnaissance); fil.IsBackground = true; fil.Start();
