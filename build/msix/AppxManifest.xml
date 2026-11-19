@@ -10,7 +10,8 @@
 
   Pas d'allowElevation : refusé par Microsoft (16 nov. 2026). Depuis la 1.5.2
   le Bridge tourne sans droits administrateur. Seule capacité restreinte :
-  runFullTrust (programme de bureau classique).
+  runFullTrust (programme de bureau classique). Depuis la 1.6.0 : le micro
+  (NOA écoute par le PC) et le réseau local (son du micro de la tablette).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -67,6 +68,10 @@
 
   <Capabilities>
     <Capability Name="internetClient" />
+    <Capability Name="privateNetworkClientServer" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- NOA : le micro du PC, seulement quand le joueur choisit de parler à
+         NOA par le PC depuis sa tablette. Rien n'est enregistré. -->
+    <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

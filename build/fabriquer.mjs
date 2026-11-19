@@ -70,6 +70,27 @@ console.log('▸ 0/4 L\'aide : fenêtre et clavier (C#, aide.cs)')
     join(racine, 'aide.cs'), infos,
   ], { stdio: 'inherit' })
 }
+console.log('▸ 0b/4 Les oreilles de NOA (C#, voix.cs) et leurs bibliothèques')
+{
+  const csc = ['Framework64', 'Framework']
+    .map(d => join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', d, 'v4.0.30319', 'csc.exe'))
+    .find(p => existsSync(p))
+  // Programme sans fenêtre (winexe) : il ne parle qu'au Bridge, par son entrée
+  // et sa sortie. x64 : libvosk.dll et Whisper sont des bibliothèques 64 bits.
+  execFileSync(csc, [
+    '/nologo', '/target:winexe', '/optimize+', '/codepage:65001', '/platform:x64',
+    `/win32icon:${join(racine, 'build', 'icone.ico')}`,
+    `/out:${join(dist, 'CitizenPad-Bridge-Voix.exe')}`,
+    join(racine, 'voix.cs'), join(dist, 'aide-infos.cs'),
+  ], { stdio: 'inherit' })
+  // libvosk.dll (+ ses dépendances) et whisper-server, préparés par GitHub
+  // Actions dans vendor/ (voir construire.yml). Copiés à côté du Bridge.
+  for (const d of ['vendor', 'vendor-whisper']) {
+    const dossier = join(racine, d)
+    if (!existsSync(dossier)) { console.log(`  (${d}/ absent : NOA sur le PC ne marchera pas avec cette fabrication)`); continue }
+    for (const f of readdirSync(dossier)) { copyFileSync(join(dossier, f), join(dist, f)); console.log(`  + ${f}`) }
+  }
+}
 console.log('▸ 1/4 Assemblage (esbuild)')
 await build({
   entryPoints: [join(racine, 'bridge.mjs')],

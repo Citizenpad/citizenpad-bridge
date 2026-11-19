@@ -38,6 +38,7 @@ import { createServer } from 'node:net'
 import { randomBytes, createHash } from 'node:crypto'
 import { connect as connexionLocale } from 'node:net'
 import { ascii } from './fenetre.mjs'
+import { Noa } from './noa.mjs'
 
 /**
  * Version de CE Bridge.
@@ -45,7 +46,7 @@ import { ascii } from './fenetre.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.5.2'
+const VERSION = '1.6.0'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -1079,6 +1080,15 @@ async function main() {
   //  possible, et le seul dont on ne puisse pas se remettre en jeu.
   let canal = null
   let compteur = 0
+
+  // ── NOA : les oreilles sur le PC ─────────────────────────────────────────
+  const noa = new Noa({
+    diffuser: (event, payload) => { if (abonne && canal) canal.send({ type: 'broadcast', event, payload }) },
+    autorise: (appareil) => autorisations.autorise(appareil),
+    noter,
+    site: () => SITE,
+    dossierProgramme: EXE ? dirname(process.execPath) : join(process.cwd(), 'dist'),
+  })
   let abonne = false
   let tentative = 0
   let minuteurPong = null
@@ -1097,6 +1107,7 @@ async function main() {
     // Installer, seulement si ce Bridge sait l'installer lui-même.
     canal.send({ type: 'broadcast', event: 'pong', payload: {
       appareil: nomPC, version: VERSION, maj: maj?.version || null, auto: EXE,
+      noa: 1,     // ce Bridge sait écouter pour NOA (micro du PC ou de la tablette)
     } })
   }
 
@@ -1147,6 +1158,10 @@ async function main() {
       console.log(`\n\n  Mise à jour demandée depuis la tablette.`)
       if (!(await installerMaj(arreterProprement))) enMaj = false
     })
+
+    // NOA : la tablette demande au PC d'écouter (voir noa.mjs). Le contrôle
+    // de l'écran autorisé est fait dans Noa.recevoir.
+    canal.on('broadcast', { event: 'noa_t' }, ({ payload }) => { noa.recevoir(payload) })
 
     canal.on('broadcast', { event: 'cmd' }, ({ payload }) => {
       const action = String(payload?.action || '')
@@ -1242,11 +1257,13 @@ async function main() {
     clearTimeout(minuteurRetry)
     abonne = false
     try { if (canal) await db.removeChannel(canal) } catch {}
+    try { noa.arreter() } catch {}
     injecteur.arreter()
     await new Promise(r => setTimeout(r, 250))
   }
 
   const sortir = () => {
+    try { noa.arreter() } catch {}
     console.log('\n\n  Relâchement de toutes les touches…')
     clearInterval(minuteurPong)
     clearTimeout(minuteurRetry)

@@ -1,6 +1,6 @@
 {
   "name": "citizenpad-bridge",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "private": true,
   "description": "Lien entre la Button Box CitizenPad et Star Citizen",
   "type": "module",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "werift": "^0.28.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

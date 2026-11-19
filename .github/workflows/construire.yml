@@ -37,8 +37,68 @@ jobs:
       - name: Dépendances
         run: npm ci --no-audit --no-fund
 
+      # ── NOA sur le PC ────────────────────────────────────────────────────
+      # libvosk.dll : la bibliothèque officielle de Vosk, prise dans son
+      # paquet Python pour Windows (le même fichier, sans Python).
+      - name: NOA — Vosk (libvosk.dll)
+        shell: pwsh
+        run: |
+          $t = Join-Path $env:RUNNER_TEMP 'vosk'
+          python -m pip download vosk==0.3.45 --platform win_amd64 --only-binary=:all: --no-deps -d $t
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $whl = Get-ChildItem $t -Filter *.whl | Select-Object -First 1
+          Copy-Item $whl.FullName "$t\vosk.zip"
+          Expand-Archive "$t\vosk.zip" -DestinationPath "$t\x" -Force
+          New-Item -ItemType Directory -Force vendor | Out-Null
+          Copy-Item "$t\x\vosk\*.dll" vendor\
+          # Le moteur C++ de Windows, posé à côté (aucune installation à faire
+          # chez le joueur, même s'il n'a jamais installé « Visual C++ »).
+          foreach ($f in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') { Copy-Item "$env:WINDIR\System32\$f" vendor\ }
+          Get-ChildItem vendor | Select-Object Name, Length
+
+      # Whisper (whisper.cpp) compilé ici, deux fois : avec la carte graphique
+      # (Vulkan : NVIDIA, AMD, Intel) et pour le processeur seul. Long la
+      # première fois (~15 min), puis gardé en cache.
+      - name: NOA — Whisper (cache)
+        id: cache-whisper
+        uses: actions/cache@v4
+        with:
+          path: vendor-whisper
+          key: whisper-v1.9.5-vulkan-cpu-r1
+
+      - name: NOA — SDK Vulkan
+        if: steps.cache-whisper.outputs.cache-hit != 'true'
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.309.0
+          cache: true
+
+      - name: NOA — Whisper (compilation)
+        if: steps.cache-whisper.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP 'whisper.cpp'
+          git clone --quiet --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp $src
+          $commun = @('-DBUILD_SHARED_LIBS=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_EXAMPLES=ON', '-DWHISPER_BUILD_SERVER=ON',
+                      '-DWHISPER_SDL2=OFF', '-DGGML_NATIVE=OFF', '-DCMAKE_POLICY_DEFAULT_CMP0091=NEW', '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded')
+          cmake -S $src -B "$src\b-cpu" @commun
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build "$src\b-cpu" --config Release --target whisper-server -j 4
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake -S $src -B "$src\b-vk" @commun -DGGML_VULKAN=ON
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmake --build "$src\b-vk" --config Release --target whisper-server -j 4
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          New-Item -ItemType Directory -Force vendor-whisper | Out-Null
+          Copy-Item "$src\b-cpu\bin\Release\whisper-server.exe" vendor-whisper\whisper-server.exe
+          Copy-Item "$src\b-vk\bin\Release\whisper-server.exe" vendor-whisper\whisper-server-vulkan.exe
+          Get-ChildItem vendor-whisper | Select-Object Name, Length
+
       - name: Exécutables (aide C# + Node SEA)
         run: npm run fabriquer
+
+      - name: NOA — les oreilles démarrent-elles ?
+        run: node build/tester-voix.mjs
 
       - name: La fenêtre répond-elle au Bridge ?
         run: node build/tester-fenetre.mjs
