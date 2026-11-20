@@ -6,15 +6,18 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 
 ## ⛔ Antivirus, navigateurs, SmartScreen, Microsoft Store
 
-### « Téléchargement dangereux bloqué » (Chrome) — Bridge 1.6.0-dev — 19 nov. 2026 — EN COURS
+### « Téléchargement dangereux bloqué » (Chrome) — Bridge 1.6.0-dev — 19 nov. 2026 — EXPLIQUÉ
 - Symptôme : Chrome bloque `CitizenPad-Bridge-1.6.0-dev.zip` (artefact GitHub Actions) comme **dangereux** (pas seulement « inhabituel »).
 - Contexte : chaque nouvelle version du Bridge s'est fait signaler ; la 1.6.0 ajoute d'un coup plusieurs programmes non signés :
   `CitizenPad-Bridge-Voix.exe` (écoute le micro, sans fenêtre), `whisper-server.exe`, `whisper-server-vulkan.exe` (46 Mo, ouvre un port local), `libvosk.dll`.
-- Causes probables (à confirmer, pas encore mesuré) :
+- Causes envisagées avant la mesure :
   1. Rien n'est signé → aucune réputation, chaque version est un fichier « jamais vu ».
   2. `CitizenPad-Bridge.exe` est un **node.exe modifié** : signature OpenJS retirée, blob Node SEA injecté (postject), sous-système PE réécrit à la main (console → GUI). C'est le schéma des voleurs de mots de passe écrits en Node (pkg / SEA) : les classifieurs le reconnaissent.
   3. Un programme caché qui écoute le micro + un serveur local = profil « logiciel espion » pour les heuristiques.
-- Pistes : voir « Ce qu'il faut essayer » plus bas.
+- **Mesure (VirusTotal, 19 nov.) : 1 / 65.** Seul DeepInstinct (classifieur automatique connu pour ses faux positifs) le signale ; **Microsoft (Defender), Google, Kaspersky, BitDefender, ESET… : rien.**
+- Conclusion : le fichier n'est PAS vu comme un virus. Le blocage de Chrome vient de la **réputation** : exécutable non signé, jamais vu, téléchargé depuis le stockage des artefacts GitHub (hébergement très utilisé par les vrais malwares). Chaque nouvelle version repart de zéro.
+- Donc : ne pas réécrire la fabrication pour ça (le montage node.exe n'est pas en cause d'après la mesure). Pour un essai : Ctrl+J → « Conserver le fichier dangereux ». Pour les joueurs : le **Microsoft Store** (signé par Microsoft).
+- Si un jour Defender ou Google se mettent à le signaler : refaire la mesure, puis envisager la piste « node.exe intact » ci-dessous.
 
 ### Programme qui en lance un autre — 16 nov. 2026 — RÉSOLU
 - Symptôme : antivirus méfiant quand l'icône épinglée lançait le Bridge via l'aide.
