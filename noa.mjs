@@ -65,6 +65,7 @@ export class Noa {
     this.appareil = ''
     this.whisper = { proc: null, port: 0, cle: '', pret: null, inactif: null }
     this.choixModele = 'auto'
+    this.echecModele = 0         // dernier téléchargement raté du modèle Whisper (pas de nouvel essai avant 30 min)
     this.invite = ''            // vocabulaire pour Whisper (pseudos, lieux)
     this.fileDictee = Promise.resolve()
     this.pc = null; this.dc = null
@@ -227,9 +228,38 @@ export class Noa {
     this.dernierSon = Date.now()
     try { this.programme() } catch (e) { this.o.noter(`SON  ${e.message}`); return }
     if (!this.ouvert) { clearTimeout(this.minuteurArret); this.minuteurArret = setTimeout(() => this.arreterSiInutile(), 60_000) }
-    if (m?.type === 'son_debut') this.ecrire('SON_DEBUT', String(Number(m.f) || 24000))
-    else if (m?.type === 'son_stop') this.ecrire('SON_STOP')
-    else if (octets) this.ecrire('SON', octets.toString('base64'))
+    // Un son annonce sa taille (tablette du 20 nov. 2026+) : on le garde jusqu'à l'avoir
+    // ENTIER avant de le jouer. Sinon un retard du Wi-Fi au milieu (renvoi de paquets)
+    // coupait NOA en pleine phrase, puis il reprenait plus tard (présentation, 20 nov. 2026).
+    // Filet : au bout de 4 s, on joue ce qui est arrivé et la suite au fil de l'eau.
+    if (m?.type === 'son_stop') { this.sons = []; clearTimeout(this.minuteurSon); return this.ecrire('SON_STOP') }
+    if (m?.type === 'son_debut') {
+      const f = String(Number(m.f) || 24000), attendu = Number(m.n) > 0 ? Number(m.n) * 2 : 0
+      if (!attendu && !this.sons?.length) return this.ecrire('SON_DEBUT', f)   // ancienne tablette : au fil de l'eau
+      ;(this.sons ||= []).push({ f, attendu, recu: 0, morceaux: [], debut: Date.now(), parti: false })
+      return this.viderSons()
+    }
+    if (!octets) return
+    const s = this.sons?.find(x => !x.attendu || x.recu < x.attendu)
+    if (!s) return this.ecrire('SON', octets.toString('base64'))
+    s.morceaux.push(Buffer.from(octets)); s.recu += octets.length
+    this.viderSons()
+  }
+
+  /** Joue, dans l'ordre, les sons complets (ou qui attendent depuis plus de 4 s). */
+  viderSons() {
+    clearTimeout(this.minuteurSon)
+    while (this.sons?.length) {
+      const s = this.sons[0]
+      const complet = s.attendu && s.recu >= s.attendu
+      if (!complet && !s.parti && Date.now() - s.debut < 4000) break
+      if (!s.parti) { s.parti = true; this.ecrire('SON_DEBUT', s.f) }
+      for (const b of s.morceaux) this.ecrire('SON', b.toString('base64'))
+      s.morceaux = []
+      if (!complet) break                     // en retard : la suite part dès qu'elle arrive
+      this.sons.shift()
+    }
+    if (this.sons?.length) this.minuteurSon = setTimeout(() => this.viderSons(), 300)
   }
 
   ligneVoix(l) {
@@ -376,12 +406,32 @@ export class Noa {
     const m = MODELES_WHISPER[nom]
     const chemin = join(DOSSIER, 'whisper', m.fichier)
     if (existsSync(chemin) && existsSync(chemin + '.complet')) return chemin
+    // Un téléchargement raté n'est pas relancé à chaque phrase : 547 Mo toutes les
+    // 20 s saturaient la connexion du joueur (journal de Veensce, 20 nov. 2026).
+    if (Date.now() - this.echecModele < 30 * 60_000) throw new Error('modèle indisponible (nouvel essai dans 30 min)')
     mkdirSync(dirname(chemin), { recursive: true })
-    const r = await fetch(`${HF}/${m.fichier}`)
+    try { return await this.telechargerModele(m, chemin, nom) }
+    catch (e) { this.echecModele = Date.now(); throw e }
+  }
+
+  async telechargerModele(m, chemin, nom) {
+    // Hugging Face donne l'empreinte SHA-256 du fichier (X-Linked-Etag) sur sa
+    // REDIRECTION vers son stockage. ⚠ La réponse finale (stockage Xet) porte une
+    // autre empreinte : en suivant la redirection d'office, la vérification
+    // échouait TOUJOURS (« modèle abîmé ») et Whisper ne s'installait jamais.
+    let url = `${HF}/${m.fichier}`
+    let r = await fetch(url, { redirect: 'manual' })
+    const linked = r.headers.get('x-linked-etag') || ''
+    for (let n = 0; r.status >= 300 && r.status < 400 && n < 5; n++) {
+      const loc = r.headers.get('location')
+      if (!loc) break
+      try { await r.body?.cancel() } catch {}
+      url = new URL(loc, url).href
+      r = await fetch(url)
+    }
     if (!r.ok || !r.body) throw new Error(`téléchargement du modèle refusé (${r.status})`)
-    // Hugging Face donne l'empreinte SHA-256 du fichier : un fichier tronqué
-    // ou altéré en route n'est jamais utilisé.
-    const attendue = String(r.headers.get('x-linked-etag') || r.headers.get('etag') || '').replace(/^W\//, '').replace(/"/g, '').toLowerCase()
+    // Sans redirection (fichier servi directement), l'empreinte est dans l'etag.
+    const attendue = String(linked || r.headers.get('etag') || '').replace(/^W\//, '').replace(/"/g, '').toLowerCase()
     const total = Number(r.headers.get('content-length')) || m.mo * 2 ** 20
     const tmp = chemin + '.partiel'
     const fd = openSync(tmp, 'w')
@@ -394,7 +444,8 @@ export class Noa {
         if (pct !== dernier) { dernier = pct; this.etat({ whisper: { modele: nom, etat: 'telecharge', pct } }) }
       }
     } finally { closeSync(fd) }
-    if (/^[0-9a-f]{64}$/.test(attendue) && h.digest('hex') !== attendue) { rmSync(tmp, { force: true }); throw new Error('modèle abîmé (empreinte différente)') }
+    const vue = h.digest('hex')
+    if (/^[0-9a-f]{64}$/.test(attendue) && vue !== attendue) { rmSync(tmp, { force: true }); throw new Error(`modèle abîmé (empreinte ${vue.slice(0, 12)}… au lieu de ${attendue.slice(0, 12)}…, ${recu} octets)`) }
     renameSync(tmp, chemin)
     writeFileSync(chemin + '.complet', '')
     this.o.noter(`NOA  modèle ${m.fichier} installé (${Math.round(recu / 2 ** 20)} Mo)`)

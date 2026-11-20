@@ -47,7 +47,7 @@ import { Noa } from './noa.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.6.5'
+const VERSION = '1.6.6'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -1181,6 +1181,7 @@ async function main() {
     clearInterval(minuteurPong)
     injecteur.toutRelacher()               // ← le filet de sécurité
     console.log(`\n  ✗ Liaison perdue (${raison}). Toutes les touches ont été relâchées.`)
+    noter(`SALON  perdu : ${raison}`)
     planifierReconnexion()
   }
 
@@ -1267,12 +1268,14 @@ async function main() {
 
     canal.on('broadcast', { event: 'cmd' }, ({ payload }) => traiterCommande(payload))
 
-    canal.subscribe(etat => {
+    canal.subscribe((etat, err) => {
+      if (etat !== 'SUBSCRIBED') noter(`SALON  ${etat}${err ? ' : ' + (err.message || err) : ''}`)
       if (etat === 'SUBSCRIBED') {
         abonne = true
         const reprise = tentative > 0
         tentative = 0
         console.log(reprise ? '\n  ✓ Liaison rétablie.\n' : '  Connecté au salon.\n')
+        noter(reprise ? 'SALON  rétabli' : 'SALON  connecté')
         if (!autorisations.refuse) montrerEtat('pret', t('Ouvre la Button Box sur ta tablette, puis clique dans la fenêtre de Star Citizen.', 'Open the Button Box on your tablet, then click into the Star Citizen window.'))
         if (!reprise) {
           console.log('  ▸ Laisse cette fenêtre ouverte et lance Star Citizen.')

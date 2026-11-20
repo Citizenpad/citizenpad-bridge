@@ -62,6 +62,17 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 - Vosk avec plusieurs lectures (`set_max_alternatives`) ne donne plus la certitude de chaque mot : on fait tourner DEUX lecteurs sur le même son (un pour la certitude, un pour les 6 lectures).
 - Une phrase sans mot reconnu n'est envoyée que pendant une dictée avec de la voix, sinon le bruit de fond fait dire « pas compris ».
 
+### Whisper ne s'installait JAMAIS : « modèle abîmé (empreinte différente) » — 20 nov. 2026 — RÉSOLU (1.6.6)
+- Symptôme (journal de Veensce) : 115 fois « WHISPER modèle abîmé », parfois toutes les 20 s ; Whisper jamais installé, donc la dictée par le PC n'a jamais tourné chez lui. 547 Mo retéléchargés à chaque essai.
+- Cause : l'empreinte SHA-256 de Hugging Face (`X-Linked-Etag`) est sur la REDIRECTION de `huggingface.co/…/resolve/…`. `fetch` suivait la redirection d'office et lisait l'`etag` du stockage final (Xet), qui n'est pas le SHA-256 du fichier → vérification toujours ratée.
+- Solution : premier appel en `redirect: 'manual'`, lire `x-linked-etag`, puis suivre `location` à la main. Après un échec : plus d'essai pendant 30 min (`echecModele`). Le message d'erreur donne maintenant les deux empreintes et la taille reçue.
+- ⚠ Soupçon : ces téléchargements à répétition saturaient la connexion et pouvaient faire tomber le salon (fenêtre qui alterne « Prêt » / « Connexion »). Depuis la 1.6.6, chaque état du salon est écrit dans le journal (`SALON …`) : regarder là d'abord.
+
+### NOA s'arrêtait en pleine phrase puis reprenait (son sur le PC) — 20 nov. 2026 — 1.6.6
+- Symptôme : présentation de NOA (une seule phrase longue, un seul fichier) coupée un long moment au milieu, puis la suite.
+- Cause probable : le son partait au PC morceau par morceau et se jouait à l'arrivée ; un renvoi de paquets sur le Wi-Fi (SCTP du lien direct) retarde la suite de plusieurs secondes.
+- Solution : la tablette annonce la taille du son (`son_debut … n`), le Bridge le garde jusqu'à l'avoir entier, puis le joue d'un bloc (filet : au bout de 4 s il joue ce qu'il a et le reste au fil de l'eau). Une tablette ancienne (sans `n`) garde l'ancien fonctionnement.
+
 ### Le son de NOA sur le PC — 1.6.3
 - La tablette rend le son elle-même (voix + effets, volume), en 24 kHz mono 16 bits, et l'envoie par le lien direct (octet 2 en tête) ; le PC le joue avec waveOut sur la sortie par défaut de Windows. Les sons se jouent les uns après les autres (pas mélangés).
 - Le micro de la tablette passe par le même lien, avec l'octet 1 en tête (avant la 1.6.3 : sans octet, incompatible).
