@@ -65,7 +65,7 @@ const STORE = EXE && /\\WindowsApps\\/i.test(process.execPath)
 // d'appairage commençant par « T- » : le Bridge retient alors le site de test
 // dans sa configuration, et toutes ses demandes partent là-bas.
 const SITE_PROD = 'https://citizenpad.com'
-const SITE_TEST = 'https://dev-citizenpad.contact-citizenpad.workers.dev'
+const SITE_TEST = 'https://citizenpad-test.contact-citizenpad.workers.dev'
 let SITE = (process.env.CITIZENPAD_URL || SITE_PROD).replace(/\/+$/, '')
 
 // ── D'où viennent les mises à jour ───────────────────────────────────────────

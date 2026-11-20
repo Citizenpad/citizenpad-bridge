@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 
 const dist = resolve(import.meta.dirname, '..', 'dist')
-const SITE = 'https://dev-citizenpad.contact-citizenpad.workers.dev'
+const SITE = 'https://citizenpad-test.contact-citizenpad.workers.dev'
 const noa = new Noa({ diffuser() {}, autorise: () => true, noter: l => console.log('  ', l), site: () => SITE, dossierProgramme: dist })
 const modele = await noa.modeleVosk()
 console.log('Modèle :', modele)
