@@ -127,6 +127,9 @@ export class Noa {
     this.etat({ etat: 'prepare', source })
     await this.lancerVoix()
     if (m.grammaire) this.ecrire('GRAMMAIRE', JSON.stringify(m.grammaire), '0')
+    // Réactivité choisie sur la tablette : silence (ms) qui termine une phrase. 300 = réglage d'origine.
+    const calme = Number.isInteger(m.calme) ? Math.min(800, Math.max(150, m.calme)) : 300
+    this.ecrire('CALME', String(calme))
     this.source = source; this.micro = micro
     this.ecrire('SOURCE', source === 'pc' ? 'pc' : 'externe', String(micro))
     this.ecrire('MICROS')

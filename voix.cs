@@ -106,7 +106,8 @@ public static class Voix {
   // après des mots reconnus suffisent. C'est ce qui rend NOA vif en combat.
   static double fond = 0.003;                    // bruit de fond, tous micros confondus
   static int calme = 0;
-  const int CALME_FIN = FREQ * 3 / 10;
+  // Réglable depuis la tablette (« Réactivité de NOA ») : commande CALME <ms>, 150 à 800 ms.
+  static int CALME_FIN = FREQ * 3 / 10;
 
   public static int Main(string[] args) {
     try { vosk_set_log_level(-1); }
@@ -143,6 +144,13 @@ public static class Voix {
       }
       case "SOURD": { bool v = p.Length > 1 && p[1] == "1"; file.Add((Action)delegate { sourd = v; if (v) Oublier(); }); return true; }
       case "DICTEE": { bool v = p.Length > 1 && p[1] == "1"; file.Add((Action)delegate { dictee = v; }); return true; }
+      case "CALME": {                            // fin de phrase après <ms> de calme (réactivité de NOA)
+        int ms = 300; if (p.Length > 1) int.TryParse(p[1], out ms);
+        if (ms < 150) ms = 150; if (ms > 800) ms = 800;
+        int n = FREQ * ms / 1000;
+        file.Add((Action)delegate { CALME_FIN = n; });
+        return true;
+      }
       case "SOURCE":                             // pc <numéro> | externe | aucune
         if (p.Length > 1 && p[1] == "pc") {
           int n = WAVE_MAPPER; if (p.Length > 2) int.TryParse(p[2], out n);
