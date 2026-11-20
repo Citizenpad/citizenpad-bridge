@@ -62,6 +62,11 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 - Vosk avec plusieurs lectures (`set_max_alternatives`) ne donne plus la certitude de chaque mot : on fait tourner DEUX lecteurs sur le même son (un pour la certitude, un pour les 6 lectures).
 - Une phrase sans mot reconnu n'est envoyée que pendant une dictée avec de la voix, sinon le bruit de fond fait dire « pas compris ».
 
+### Le son de NOA sur le PC — 1.6.3
+- La tablette rend le son elle-même (voix + effets, volume), en 24 kHz mono 16 bits, et l'envoie par le lien direct (octet 2 en tête) ; le PC le joue avec waveOut sur la sortie par défaut de Windows. Les sons se jouent les uns après les autres (pas mélangés).
+- Le micro de la tablette passe par le même lien, avec l'octet 1 en tête (avant la 1.6.3 : sans octet, incompatible).
+- Le lien direct est partagé (écoute, touches, son) et reste ouvert : arrêter l'écoute ne le ferme pas.
+
 ## 🖥️ Au lancement chez le joueur
 
 ### Chemins avec accents (Kaldi / Vosk)

@@ -96,6 +96,7 @@ export class Noa {
         // Une touche de la Button Box arrivée par le lien direct : même traitement
         // (et mêmes contrôles) que par le salon.
         case 'cmd': return parLien ? this.o.commande?.(m) : undefined
+        case 'son_debut': case 'son_stop': return parLien ? this.son(m) : undefined
       }
     } catch (e) {
       this.o.noter(`NOA  erreur (${m.type}) : ${e.message}`)
@@ -148,7 +149,17 @@ export class Noa {
     this.whisper.inactif = setTimeout(() => { if (!this.ouvert) this.arreterWhisper() }, 180_000)
     // Le programme reste prêt une minute (réouverture instantanée), puis s'arrête.
     clearTimeout(this.minuteurArret)
-    this.minuteurArret = setTimeout(() => { if (!this.ouvert) this.arreter() }, 60_000)
+    this.minuteurArret = setTimeout(() => this.arreterSiInutile(), 60_000)
+  }
+
+  /** Ni écoute, ni son depuis une minute : le programme s'arrête (il redémarre en un instant). */
+  arreterSiInutile() {
+    if (this.ouvert || Date.now() - (this.dernierSon || 0) < 60_000) { this.minuteurArret = setTimeout(() => this.arreterSiInutile(), 60_000); return }
+    // (le lien direct avec la tablette reste ouvert : il ne coûte rien)
+    try { this.ecrire('QUITTER') } catch {}
+    try { this.voix?.kill() } catch {}
+    this.voix = null; this.voixPrete = null
+    this.arreterWhisper()
   }
 
   arreter() {
@@ -166,39 +177,60 @@ export class Noa {
   }
 
   // ── Le programme d'écoute (Vosk) ──────────────────────────────────────────
+  /** Le programme d'écoute ET de son (CitizenPad-Bridge-Voix.exe), sans modèle : il sait déjà jouer le son. */
+  programme() {
+    clearTimeout(this.minuteurArret)
+    if (this.voix) return this.voix
+    const exe = join(this.o.dossierProgramme, 'CitizenPad-Bridge-Voix.exe')
+    if (!existsSync(exe)) throw new Error('CitizenPad-Bridge-Voix.exe introuvable')
+    // (Hors Windows, pour les essais : le même programme tourne avec Mono.)
+    const p = process.platform === 'win32'
+      ? spawn(exe, [], { cwd: this.o.dossierProgramme, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      : spawn('mono', [exe], { cwd: this.o.dossierProgramme, stdio: ['pipe', 'pipe', 'pipe'] })
+    this.voix = p
+    this.modele = null
+    p.stdin.on('error', () => {})
+    p.stderr.setEncoding('utf8')
+    // Vosk signale chaque mot hors de son dictionnaire (pseudos…) : inutile de remplir le journal.
+    p.stderr.on('data', d => { const t = String(d).split('\n').filter(l => l.trim() && !/Ignoring word missing/.test(l)).join(' ').trim(); if (t) this.o.noter(`VOIX  ${t.slice(0, 400)}`) })
+    readline.createInterface({ input: p.stdout }).on('line', l => this.ligneVoix(l))
+    p.on('exit', code => {
+      this.o.noter(`VOIX  arrêté (code ${code})`)
+      this.modele?.rate(new Error(`le programme d'écoute s'est arrêté (${code})`))
+      if (this.voix === p) { this.voix = null; this.voixPrete = null; if (this.ouvert) this.etat({ etat: 'erreur', detail: 'écoute arrêtée' }) }
+    })
+    this.ecrire('INFOS')
+    return p
+  }
+
   lancerVoix() {
     clearTimeout(this.minuteurArret)
     if (this.voixPrete) return this.voixPrete
     this.voixPrete = (async () => {
       const dossierVosk = await this.modeleVosk()
-      const exe = join(this.o.dossierProgramme, 'CitizenPad-Bridge-Voix.exe')
-      if (!existsSync(exe)) throw new Error('CitizenPad-Bridge-Voix.exe introuvable')
-      // (Hors Windows, pour les essais : le même programme tourne avec Mono.)
-      const p = process.platform === 'win32'
-        ? spawn(exe, [], { cwd: this.o.dossierProgramme, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
-        : spawn('mono', [exe], { cwd: this.o.dossierProgramme, stdio: ['pipe', 'pipe', 'pipe'] })
-      this.voix = p
-      p.stdin.on('error', () => {})
-      p.stderr.setEncoding('utf8')
-      // Vosk signale chaque mot hors de son dictionnaire (pseudos…) : inutile de remplir le journal.
-      p.stderr.on('data', d => { const t = String(d).split('\n').filter(l => l.trim() && !/Ignoring word missing/.test(l)).join(' ').trim(); if (t) this.o.noter(`VOIX  ${t.slice(0, 400)}`) })
-      let pret, rate
-      const modeleCharge = new Promise((a, b) => { pret = a; rate = b })
-      readline.createInterface({ input: p.stdout }).on('line', l => this.ligneVoix(l, pret, rate))
-      p.on('exit', code => {
-        this.o.noter(`VOIX  arrêté (code ${code})`)
-        rate(new Error(`le programme d'écoute s'est arrêté (${code})`))
-        if (this.voix === p) { this.voix = null; this.voixPrete = null; if (this.ouvert) this.etat({ etat: 'erreur', detail: 'écoute arrêtée' }) }
-      })
+      this.programme()
+      const charge = new Promise((pret, rate) => { this.modele = { pret, rate } })
       this.ecrire('MODELE', dossierVosk)
-      this.ecrire('INFOS')
-      await modeleCharge
+      await charge
     })()
     this.voixPrete.catch(() => { this.voixPrete = null })
     return this.voixPrete
   }
 
-  ligneVoix(l, pret, rate) {
+  // ── Le son de NOA sur le PC ───────────────────────────────────────────────
+  //  La tablette prépare le son (voix + effets, déjà au bon volume) et l'envoie par le lien
+  //  direct ; le PC le joue sur sa sortie par défaut (casque ou enceintes).
+  son(m, octets) {
+    this.dernierSon = Date.now()
+    try { this.programme() } catch (e) { this.o.noter(`SON  ${e.message}`); return }
+    if (!this.ouvert) { clearTimeout(this.minuteurArret); this.minuteurArret = setTimeout(() => this.arreterSiInutile(), 60_000) }
+    if (m?.type === 'son_debut') this.ecrire('SON_DEBUT', String(Number(m.f) || 24000))
+    else if (m?.type === 'son_stop') this.ecrire('SON_STOP')
+    else if (octets) this.ecrire('SON', octets.toString('base64'))
+  }
+
+  ligneVoix(l) {
+    const pret = () => this.modele?.pret(), rate = e => this.modele?.rate(e)
     const i = l.indexOf('\t')
     const quoi = i < 0 ? l : l.slice(0, i), reste = i < 0 ? '' : l.slice(i + 1)
     switch (quoi) {
@@ -418,8 +450,10 @@ export class Noa {
         })
         dc.onMessage.subscribe(d => {
           if (typeof d === 'string') { try { this.recevoir(JSON.parse(d), true) } catch {} return }
-          // Son du micro de la tablette : 16 kHz, 16 bits, mono.
-          if (this.source === 'tablette' && this.ouvert) this.ecrire('PCM', Buffer.from(d).toString('base64'))
+          // Premier octet : 1 = son du micro de la tablette (16 kHz, 16 bits, mono) ; 2 = son de NOA à jouer sur le PC.
+          const b = Buffer.from(d)
+          if (b[0] === 2) return this.son(null, b.subarray(1))
+          if (b[0] === 1 && this.source === 'tablette' && this.ouvert) this.ecrire('PCM', b.subarray(1).toString('base64'))
         })
         this.dc = dc
         this.o.noter('LIEN  ouvert avec la tablette')

@@ -46,7 +46,7 @@ import { Noa } from './noa.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.6.2'
+const VERSION = '1.6.3'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :

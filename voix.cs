@@ -56,6 +56,12 @@ public static class Voix {
   [DllImport("winmm.dll")] static extern int waveInStart(IntPtr h);
   [DllImport("winmm.dll")] static extern int waveInReset(IntPtr h);
   [DllImport("winmm.dll")] static extern int waveInClose(IntPtr h);
+  [DllImport("winmm.dll")] static extern int waveOutOpen(out IntPtr h, int peripherique, ref WAVEFORMATEX f, IntPtr rappel, IntPtr instance, int options);
+  [DllImport("winmm.dll")] static extern int waveOutPrepareHeader(IntPtr h, IntPtr entete, int taille);
+  [DllImport("winmm.dll")] static extern int waveOutUnprepareHeader(IntPtr h, IntPtr entete, int taille);
+  [DllImport("winmm.dll")] static extern int waveOutWrite(IntPtr h, IntPtr entete, int taille);
+  [DllImport("winmm.dll")] static extern int waveOutReset(IntPtr h);
+  [DllImport("winmm.dll")] static extern int waveOutClose(IntPtr h);
   [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern int GetShortPathNameW(string longue, StringBuilder courte, int taille);
   const int CALLBACK_EVENT = 0x50000, WHDR_DONE = 1, WAVE_MAPPER = -1;
 
@@ -145,7 +151,12 @@ public static class Voix {
         return true;
       case "MICROS": Envoyer("MICROS\t" + ListeMicros()); return true;
       case "INFOS": Envoyer("INFOS\t" + CartesGraphiques()); return true;
-      case "QUITTER": return false;
+      // Le son de NOA joué sur le PC (préparé par la tablette, effets compris) :
+      // SON_DEBUT <fréquence> · SON <base64 16 bits mono> … · SON_STOP (coupe tout de suite)
+      case "SON_DEBUT": { int f = 24000; if (p.Length > 1) int.TryParse(p[1], out f); Sortie.Debut(f); return true; }
+      case "SON": if (p.Length > 1) Sortie.Ajouter(Convert.FromBase64String(p[1])); return true;
+      case "SON_STOP": Sortie.Stop(); return true;
+      case "QUITTER": Sortie.Stop(); return false;
     }
     return true;
   }
@@ -286,6 +297,54 @@ public static class Voix {
     byte[] r = new byte[son.Length];
     for (int i = 0; i < n; i++) { short v = (short)(BitConverter.ToInt16(son, i * 2) / 8); r[i * 2] = (byte)(v & 0xff); r[i * 2 + 1] = (byte)((v >> 8) & 0xff); }
     return r;
+  }
+
+  // ── Haut-parleurs / casque du PC (sortie par défaut de Windows) ──────────
+  static class Sortie {
+    static readonly object v = new object();
+    static IntPtr h = IntPtr.Zero;
+    static int freq = 0;
+    static readonly List<IntPtr> enCours = new List<IntPtr>();     // en-têtes envoyés à Windows
+    static int taille = Marshal.SizeOf(typeof(WAVEHDR));
+    static int decDrapeaux = (int)Marshal.OffsetOf(typeof(WAVEHDR), "dwFlags");
+
+    public static void Debut(int f) {
+      lock (v) {
+        Nettoyer();
+        if (h != IntPtr.Zero && f == freq) return;
+        Fermer();
+        WAVEFORMATEX w = new WAVEFORMATEX();
+        w.wFormatTag = 1; w.nChannels = 1; w.nSamplesPerSec = (uint)f; w.wBitsPerSample = 16;
+        w.nBlockAlign = 2; w.nAvgBytesPerSec = (uint)(f * 2); w.cbSize = 0;
+        int r = waveOutOpen(out h, WAVE_MAPPER, ref w, IntPtr.Zero, IntPtr.Zero, 0);
+        if (r != 0) { h = IntPtr.Zero; Envoyer("ERREUR\tsortie son " + r); return; }
+        freq = f;
+      }
+    }
+    public static void Ajouter(byte[] son) {
+      lock (v) {
+        if (h == IntPtr.Zero) Debut(24000);
+        if (h == IntPtr.Zero || son.Length == 0) return;
+        Nettoyer();
+        WAVEHDR w = new WAVEHDR(); w.lpData = Marshal.AllocHGlobal(son.Length); w.dwBufferLength = (uint)son.Length;
+        Marshal.Copy(son, 0, w.lpData, son.Length);
+        IntPtr e = Marshal.AllocHGlobal(taille); Marshal.StructureToPtr(w, e, false);
+        waveOutPrepareHeader(h, e, taille); waveOutWrite(h, e, taille);
+        enCours.Add(e);
+      }
+    }
+    public static void Stop() { lock (v) { if (h != IntPtr.Zero) waveOutReset(h); Nettoyer(); } }
+    // Libère les morceaux déjà joués (WHDR_DONE).
+    static void Nettoyer() {
+      for (int i = enCours.Count - 1; i >= 0; i--) {
+        IntPtr e = enCours[i];
+        if ((Marshal.ReadInt32(e, decDrapeaux) & WHDR_DONE) == 0) continue;
+        waveOutUnprepareHeader(h, e, taille);
+        Marshal.FreeHGlobal(Marshal.ReadIntPtr(e)); Marshal.FreeHGlobal(e);
+        enCours.RemoveAt(i);
+      }
+    }
+    static void Fermer() { if (h == IntPtr.Zero) return; waveOutReset(h); Nettoyer(); waveOutClose(h); h = IntPtr.Zero; }
   }
 
   // ── Micro du PC ───────────────────────────────────────────────────────────

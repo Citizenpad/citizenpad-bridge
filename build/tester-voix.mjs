@@ -32,6 +32,11 @@ w('SOURCE\texterne')
 const son = Buffer.alloc(32000); for (let i = 0; i < son.length; i += 2) son.writeInt16LE(Math.round((Math.random() - 0.5) * 200), i)
 for (let i = 0; i < son.length; i += 1280) w(`PCM\t${son.subarray(i, i + 1280).toString('base64')}`)
 await attendre('NIVEAU', 5000)
+// Le son de NOA sur le PC : la machine de GitHub n'a pas de carte son, le programme doit
+// le dire sans s'arrêter.
+vus.delete('INFOS')
+w('SON_DEBUT\t24000'); w(`SON\t${Buffer.alloc(4800).toString('base64')}`); w('SON_STOP')
+w('INFOS'); await attendre('INFOS', 10000)
 w('QUITTER')
 await new Promise(r => p.on('exit', r))
 
