@@ -38,6 +38,7 @@ public static class Voix {
   [DllImport(V, CallingConvention = CallingConvention.Cdecl)] static extern IntPtr vosk_recognizer_result(IntPtr r);
   [DllImport(V, CallingConvention = CallingConvention.Cdecl)] static extern IntPtr vosk_recognizer_final_result(IntPtr r);
   [DllImport(V, CallingConvention = CallingConvention.Cdecl)] static extern void vosk_recognizer_free(IntPtr r);
+  [DllImport(V, CallingConvention = CallingConvention.Cdecl)] static extern void vosk_recognizer_set_max_alternatives(IntPtr r, int n);
 
   // ── Micro Windows (waveIn, winmm.dll) ─────────────────────────────────────
   [StructLayout(LayoutKind.Sequential)]
@@ -71,18 +72,17 @@ public static class Voix {
   static readonly BlockingCollection<object> file = new BlockingCollection<object>(new ConcurrentQueue<object>(), 400);
 
   // État du fil de reconnaissance (n'y touche que lui).
-  static IntPtr modele = IntPtr.Zero, reco = IntPtr.Zero;
+  // Deux lecteurs sur le même son : « reco » donne la certitude de chaque mot (pour écarter le
+  // bruit), « alt » donne les 6 lectures les plus probables (NOA choisit celle qui fait une
+  // commande sûre : « noa noa » → « noa noise »). Mesuré sur le banc d'essai : +5 phrases sur 42.
+  static IntPtr modele = IntPtr.Zero, reco = IntPtr.Zero, alt = IntPtr.Zero;
+  static string dernierAlt = "";                                  // fin de phrase vue par « alt » avant « reco »
   static bool sourd = false, dictee = false, filtrer = false;
   static string dernierPartiel = "";
   static readonly List<byte[]> enCours = new List<byte[]>();     // la phrase en train d'être dite
   static readonly List<byte[]> derniere = new List<byte[]>();    // la phrase précédente (pour la réécouter)
-  // Dictée : la phrase continue tant qu'on reparle dans les 0,7 s ; puis elle part à Whisper.
-  static readonly List<byte[]> segment = new List<byte[]>();
-  static int echantillonsDepuisFin = -1;
-  static bool parole = false;
-  // Avant la phrase : 300 ms gardés pour ne pas couper la première syllabe.
-  static readonly Queue<byte[]> avant = new Queue<byte[]>();
-  static int avantOctets = 0;
+  static int numero = 0;                                          // numéro de la phrase (relie Vosk et Whisper)
+  static bool voixVue = false;                                    // quelqu'un a parlé depuis la dernière fin de phrase
 
   // Micro du PC
   static Thread filMicro;
@@ -136,7 +136,7 @@ public static class Voix {
         return true;
       }
       case "SOURD": { bool v = p.Length > 1 && p[1] == "1"; file.Add((Action)delegate { sourd = v; if (v) Oublier(); }); return true; }
-      case "DICTEE": { bool v = p.Length > 1 && p[1] == "1"; file.Add((Action)delegate { dictee = v; segment.Clear(); echantillonsDepuisFin = -1; }); return true; }
+      case "DICTEE": { bool v = p.Length > 1 && p[1] == "1"; file.Add((Action)delegate { dictee = v; }); return true; }
       case "SOURCE":                             // pc <numéro> | externe | aucune
         if (p.Length > 1 && p[1] == "pc") {
           int n = WAVE_MAPPER; if (p.Length > 2) int.TryParse(p[2], out n);
@@ -181,12 +181,15 @@ public static class Voix {
 
   static void NouvelleGrammaire(string g, bool rejouer) {
     if (modele == IntPtr.Zero) { Envoyer("ERREUR\tgrammaire avant le modèle"); return; }
-    IntPtr ancien = reco;
+    IntPtr ancien = reco, ancienAlt = alt;
     reco = string.IsNullOrEmpty(g) ? vosk_recognizer_new(modele, FREQ) : vosk_recognizer_new_grm(modele, FREQ, Chaine(g, Encoding.UTF8));
     if (reco == IntPtr.Zero) { reco = ancien; Envoyer("ERREUR\tgrammaire refusée"); return; }
     vosk_recognizer_set_words(reco, 1);
+    alt = string.IsNullOrEmpty(g) ? vosk_recognizer_new(modele, FREQ) : vosk_recognizer_new_grm(modele, FREQ, Chaine(g, Encoding.UTF8));
+    if (alt != IntPtr.Zero) vosk_recognizer_set_max_alternatives(alt, 6);
     if (ancien != IntPtr.Zero) vosk_recognizer_free(ancien);
-    dernierPartiel = "";
+    if (ancienAlt != IntPtr.Zero) vosk_recognizer_free(ancienAlt);
+    dernierPartiel = ""; dernierAlt = "";
     if (rejouer) {
       // La phrase qui vient d'être dite est réécoutée avec le nouveau vocabulaire.
       var audio = new List<byte[]>(derniere); audio.AddRange(enCours); enCours.Clear();
@@ -197,7 +200,7 @@ public static class Voix {
     Envoyer("GRAMMAIRE_OK");
   }
 
-  static void Oublier() { enCours.Clear(); segment.Clear(); echantillonsDepuisFin = -1; avant.Clear(); avantOctets = 0; }
+  static void Oublier() { enCours.Clear(); voixVue = false; calme = 0; }
 
   static void Traiter(byte[] son) {
     Niveau(son);
@@ -206,51 +209,56 @@ public static class Voix {
   }
 
   static void Reconnaitre(byte[] son, bool garder) {
-    if (garder) {
-      enCours.Add(son);
-      if (enCours.Count > 400) enCours.RemoveAt(0);          // ~16 s au plus
-      if (dictee) {
-        if (segment.Count == 0 && !parole) { avant.Enqueue(son); avantOctets += son.Length; while (avantOctets > FREQ * 2 * 3 / 10) avantOctets -= avant.Dequeue().Length; }
-        else segment.Add(son);
-      }
-    }
+    if (garder) { enCours.Add(son); if (enCours.Count > 400) enCours.RemoveAt(0); }       // ~16 s au plus
     int fin = vosk_recognizer_accept_waveform(reco, son, son.Length);
-    // Nos propres fins de phrase : des mots entendus, puis 300 ms nettement plus calmes.
+    if (alt != IntPtr.Zero && vosk_recognizer_accept_waveform(alt, son, son.Length) != 0) dernierAlt = Lire(vosk_recognizer_result(alt));
+    // Voix et calme, d'après l'énergie (indépendant du vocabulaire : un pseudo ou « au un » hors
+    // de la liste de phrases compte aussi comme de la voix — c'était le défaut de la 1.6.0).
     double rms = Rms(son);
     fond = rms < fond ? fond * 0.8 + rms * 0.2 : fond * 0.998 + rms * 0.002;
     if (fond < 0.0003) fond = 0.0003;
+    if (rms > Math.Max(fond * 3, 0.004)) voixVue = true;
     if (rms < Math.Max(fond * 2.5, 0.002)) calme += son.Length / 2; else calme = 0;
-    bool forcer = fin == 0 && calme >= CALME_FIN && dernierPartiel.Length > 0 && !PartielVide(dernierPartiel);
+    // Fin de phrase : celle de Vosk, ou la nôtre (300 ms de calme après des mots ; 600 ms pendant une
+    // dictée, pour laisser respirer au milieu d'une phrase).
+    bool mots = dernierPartiel.Length > 0 && !PartielVide(dernierPartiel);
+    bool forcer = fin == 0 && ((mots && calme >= (dictee ? CALME_FIN * 2 : CALME_FIN)) || (dictee && voixVue && calme >= CALME_FIN * 2));
     if (fin != 0 || forcer) {
       string r = Lire(forcer ? vosk_recognizer_final_result(reco) : vosk_recognizer_result(reco));
+      string a = alt == IntPtr.Zero ? "" : (dernierAlt.Length > 0 ? dernierAlt : Lire(vosk_recognizer_final_result(alt)));
+      if (alt != IntPtr.Zero && dernierAlt.Length > 0) vosk_recognizer_final_result(alt);   // remet « alt » au même point
+      dernierAlt = "";
       calme = 0;
-      Envoyer("RESULTAT\t" + Une(r));
+      numero++;
+      // Une phrase sans aucun mot reconnu n'est envoyée que pendant une dictée, avec de la voix
+      // (Whisper va l'écrire) : sinon le bruit de fond ferait dire « pas compris » à NOA.
+      bool vide = r.IndexOf("\"text\" : \"\"", StringComparison.Ordinal) >= 0 || r.IndexOf("\"text\":\"\"", StringComparison.Ordinal) >= 0;
+      if (!vide || (dictee && voixVue)) Envoyer("RESULTAT\t" + numero + "\t" + Une(r) + "\t" + Une(a));
       dernierPartiel = "";
-      if (garder) { derniere.Clear(); derniere.AddRange(enCours); enCours.Clear(); }
-      if (parole) { parole = false; echantillonsDepuisFin = 0; }
+      if (garder) {
+        if (dictee && voixVue) Segment(numero, enCours);
+        derniere.Clear(); derniere.AddRange(enCours); enCours.Clear();
+      }
+      voixVue = false;
     } else {
       string p = Lire(vosk_recognizer_partial_result(reco));
-      bool parle = !PartielVide(p);
-      if (p != dernierPartiel) { dernierPartiel = p; if (parle) Envoyer("PARTIEL\t" + Une(p)); }
-      if (parle && garder && dictee && !parole) {
-        parole = true; echantillonsDepuisFin = -1;
-        if (segment.Count == 0) { segment.AddRange(avant); avant.Clear(); avantOctets = 0; }
-      }
+      if (p != dernierPartiel) { dernierPartiel = p; if (!PartielVide(p)) Envoyer("PARTIEL\t" + Une(p)); }
     }
-    // Dictée : 0,7 s de silence après la fin d'une phrase → le morceau part à Whisper.
-    if (garder && dictee && echantillonsDepuisFin >= 0 && !parole) {
-      echantillonsDepuisFin += son.Length / 2;
-      if (echantillonsDepuisFin > FREQ * 7 / 10) {
-        echantillonsDepuisFin = -1;
-        int total = 0; foreach (byte[] m in segment) total += m.Length;
-        if (total > FREQ * 2 * 3 / 10) {
-          byte[] tout = new byte[total]; int k = 0;
-          foreach (byte[] m in segment) { Buffer.BlockCopy(m, 0, tout, k, m.Length); k += m.Length; }
-          Envoyer("SEGMENT\t" + Convert.ToBase64String(tout));
-        }
-        segment.Clear();
-      }
-    }
+  }
+
+  /** La phrase pour Whisper : seulement la partie où l'on parle, plus 300 ms autour. */
+  static void Segment(int n, List<byte[]> morceaux) {
+    int premier = -1, dernier = -1;
+    double seuil = Math.Max(fond * 3, 0.004);
+    for (int i = 0; i < morceaux.Count; i++) if (Rms(morceaux[i]) > seuil) { if (premier < 0) premier = i; dernier = i; }
+    if (premier < 0) return;
+    int marge = Math.Max(1, (FREQ * 2 * 3 / 10) / Math.Max(1, morceaux[premier].Length));
+    premier = Math.Max(0, premier - marge); dernier = Math.Min(morceaux.Count - 1, dernier + marge);
+    int total = 0; for (int i = premier; i <= dernier; i++) total += morceaux[i].Length;
+    if (total < FREQ * 2 / 4) return;                      // moins d'un quart de seconde : pas une phrase
+    byte[] tout = new byte[total]; int k = 0;
+    for (int i = premier; i <= dernier; i++) { Buffer.BlockCopy(morceaux[i], 0, tout, k, morceaux[i].Length); k += morceaux[i].Length; }
+    Envoyer("SEGMENT\t" + n + "\t" + Convert.ToBase64String(tout));
   }
 
   static void Niveau(byte[] son) {

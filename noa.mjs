@@ -86,7 +86,7 @@ export class Noa {
         case 'sourd': return this.ecrire('SOURD', m.v ? '1' : '0')
         case 'dictee': {
           if (typeof m.invite === 'string') this.invite = m.invite.slice(0, 600)
-          this.ecrire('DICTEE', m.v ? '1' : '0')
+          this.ecrire('DICTEE', m.v ? '1' : '0'); this.dicteeActive = !!m.v
           if (m.v) this.demarrerWhisper().catch(e => this.etat({ whisper: { etat: 'erreur', detail: e.message } }))
           return
         }
@@ -131,6 +131,8 @@ export class Noa {
     this.ecrire('MICROS')
     const whisper = this.choisirWhisper()
     this.etat({ etat: 'pret', source, whisper: { modele: whisper?.modele || null, gpu: !!whisper?.gpu, etat: this.whisper.proc ? 'pret' : 'repos' } })
+    // Whisper chargé dès maintenant (téléchargé la première fois) : prêt avant le premier message.
+    if (whisper) this.demarrerWhisper().catch(e => this.etat({ whisper: { modele: whisper.modele, etat: 'erreur', detail: e.message } }))
     this.o.noter(`NOA  écoute ouverte (${source}${source === 'pc' ? `, micro ${micro}` : ''})`)
   }
 
@@ -141,6 +143,9 @@ export class Noa {
     this.ecrire('DICTEE', '0')
     this.etat({ etat: 'arret' })
     this.o.noter('NOA  écoute fermée')
+    // Whisper rend sa mémoire (vidéo) au jeu trois minutes après la fermeture de NOA.
+    clearTimeout(this.whisper.inactif)
+    this.whisper.inactif = setTimeout(() => { if (!this.ouvert) this.arreterWhisper() }, 180_000)
     // Le programme reste prêt une minute (réouverture instantanée), puis s'arrête.
     clearTimeout(this.minuteurArret)
     this.minuteurArret = setTimeout(() => { if (!this.ouvert) this.arreter() }, 60_000)
@@ -175,7 +180,8 @@ export class Noa {
       this.voix = p
       p.stdin.on('error', () => {})
       p.stderr.setEncoding('utf8')
-      p.stderr.on('data', d => this.o.noter(`VOIX  ${String(d).trim().slice(0, 400)}`))
+      // Vosk signale chaque mot hors de son dictionnaire (pseudos…) : inutile de remplir le journal.
+      p.stderr.on('data', d => { const t = String(d).split('\n').filter(l => l.trim() && !/Ignoring word missing/.test(l)).join(' ').trim(); if (t) this.o.noter(`VOIX  ${t.slice(0, 400)}`) })
       let pret, rate
       const modeleCharge = new Promise((a, b) => { pret = a; rate = b })
       readline.createInterface({ input: p.stdout }).on('line', l => this.ligneVoix(l, pret, rate))
@@ -204,12 +210,16 @@ export class Noa {
         return
       }
       case 'RESULTAT': {
-        const j = lireJson(reste)
+        // numéro de la phrase, lecture avec la certitude de chaque mot, 6 lectures possibles
+        const [n, jr, ja] = reste.split('\t')
+        const j = lireJson(jr), a = lireJson(ja)
         const t = String(j?.text || '').trim()
-        if (!t) return
         const mots = (j?.result || []).filter(w => w.word !== '[unk]')
-        const c = mots.length ? mots.reduce((a, w) => a + (w.conf ?? 1), 0) / mots.length : 1
-        this.emettre('resultat', { t, c: Math.round(c * 100) / 100 })
+        const c = mots.length ? mots.reduce((x, w) => x + (w.conf ?? 1), 0) / mots.length : 1
+        const alts = (a?.alternatives || []).filter(x => x.text).map(x => ({ t: x.text, s: Math.round(x.confidence * 10) / 10 }))
+        // Une phrase sans aucun mot du vocabulaire compte aussi pendant une dictée : Whisper va l'écrire.
+        if (!t && !this.dicteeActive) return
+        this.emettre('resultat', { t, c: Math.round(c * 100) / 100, seq: Number(n) || 0, alts })
         return
       }
       case 'NIVEAU': {
@@ -221,7 +231,7 @@ export class Noa {
         this.emettre('niveau', { n })
         return
       }
-      case 'SEGMENT': return this.dicter(Buffer.from(reste, 'base64'))
+      case 'SEGMENT': { const [n, b] = reste.split('\t'); return this.dicter(Buffer.from(b || '', 'base64'), Number(n) || 0) }
       case 'MICROS': return this.emettre('micros', { liste: lireJson(reste) || [] })
       case 'INFOS': this.materiel = { cartes: lireJson(reste) || [], coeurs: cpus().length, vulkan: vulkanPresent() }; this.o.noter(`NOA  matériel : ${JSON.stringify(this.materiel)}`); return
       case 'MICRO_OK': this.o.noter(`VOIX  micro ouvert (${reste})`); return
@@ -357,7 +367,7 @@ export class Noa {
   }
 
   /** Une phrase dictée → Whisper → texte, dans l'ordre où elles ont été dites. */
-  dicter(pcm) {
+  dicter(pcm, seq = 0) {
     this.fileDictee = this.fileDictee.then(async () => {
       try {
         await this.demarrerWhisper()
@@ -375,15 +385,11 @@ export class Noa {
         const j = await r.json().catch(() => ({}))
         const texte = String(j?.text || '').replace(/\s+/g, ' ').trim()
         this.o.noter(`WHISPER  ${(pcm.length / 32000).toFixed(1)} s de voix → ${Date.now() - t0} ms`)
-        if (!texte || HALLUCINATIONS.test(texte)) return
-        this.emettre('dictee', { t: texte })
+        // Toujours répondre (même vide) : la tablette attend ce numéro pour décider.
+        this.emettre('dictee', { t: !texte || HALLUCINATIONS.test(texte) ? '' : texte, seq })
       } catch (e) {
         this.o.noter(`WHISPER  échec : ${e.message}`)
-        this.emettre('dictee', { t: '', erreur: e.message })
-      } finally {
-        // Trois minutes sans dictée : Whisper rend la mémoire (vidéo) au jeu.
-        clearTimeout(this.whisper.inactif)
-        this.whisper.inactif = setTimeout(() => this.arreterWhisper(), 180_000)
+        this.emettre('dictee', { t: '', seq, erreur: e.message })
       }
     })
   }

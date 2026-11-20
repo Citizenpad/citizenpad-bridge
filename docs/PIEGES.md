@@ -53,6 +53,15 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 ### whisper-server-vulkan.exe ne démarre pas sur la machine GitHub
 - Normal : pas de pilote Vulkan sur le runner. Le test l'accepte.
 
+## 🎙️ NOA sur le PC
+
+### 1.6.0 : la dictée par le PC ne comprenait rien — 19 nov. 2026 — RÉSOLU (1.6.1)
+- Cause : pour savoir quand on parle, le programme se fiait au moteur des COMMANDES ; un mot hors de sa liste (« un », un pseudo) ne le faisait pas réagir → aucune phrase n'était envoyée à Whisper.
+- Solution : détection de la voix par l'énergie du son, indépendante du vocabulaire ; chaque fin de phrase envoie le son à Whisper, avec un numéro qui relie la lecture de Vosk et celle de Whisper ; Whisper chargé dès l'ouverture de NOA.
+- Mesure (banc `citizenpad/tests/voix`) : Whisper seul est mauvais sur les mots courts ; Vosk seul sur les noms. La tablette choisit la meilleure lecture des deux à chaque étape → 42/42 (micro PC), 41/42 (micro tablette).
+- Vosk avec plusieurs lectures (`set_max_alternatives`) ne donne plus la certitude de chaque mot : on fait tourner DEUX lecteurs sur le même son (un pour la certitude, un pour les 6 lectures).
+- Une phrase sans mot reconnu n'est envoyée que pendant une dictée avec de la voix, sinon le bruit de fond fait dire « pas compris ».
+
 ## 🖥️ Au lancement chez le joueur
 
 ### Chemins avec accents (Kaldi / Vosk)
