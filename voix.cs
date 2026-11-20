@@ -219,10 +219,10 @@ public static class Voix {
     if (fond < 0.0003) fond = 0.0003;
     if (rms > Math.Max(fond * 3, 0.004)) voixVue = true;
     if (rms < Math.Max(fond * 2.5, 0.002)) calme += son.Length / 2; else calme = 0;
-    // Fin de phrase : celle de Vosk, ou la nôtre (300 ms de calme après des mots ; 600 ms pendant une
+    // Fin de phrase : celle de Vosk, ou la nôtre (300 ms de calme après des mots ; 450 ms pendant une
     // dictée, pour laisser respirer au milieu d'une phrase).
     bool mots = dernierPartiel.Length > 0 && !PartielVide(dernierPartiel);
-    bool forcer = fin == 0 && ((mots && calme >= (dictee ? CALME_FIN * 2 : CALME_FIN)) || (dictee && voixVue && calme >= CALME_FIN * 2));
+    bool forcer = fin == 0 && ((mots && calme >= (dictee ? CALME_FIN * 3 / 2 : CALME_FIN)) || (dictee && voixVue && calme >= CALME_FIN * 3 / 2));
     if (fin != 0 || forcer) {
       string r = Lire(forcer ? vosk_recognizer_final_result(reco) : vosk_recognizer_result(reco));
       string a = alt == IntPtr.Zero ? "" : (dernierAlt.Length > 0 ? dernierAlt : Lire(vosk_recognizer_final_result(alt)));
