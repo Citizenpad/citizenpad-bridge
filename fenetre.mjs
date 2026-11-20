@@ -4,7 +4,7 @@
 //  La fenêtre est un petit programme à part, CitizenPad-Bridge-Aide.exe
 //  (source : aide.cs). Node et lui se parlent par lignes de texte, champs
 //  séparés par une tabulation :
-//    Node → fenêtre   ETAT, CODE, COMPTEUR, MAJ, MAJPROG, MSG, TEST, AFFICHER, FIN
+//    Node → fenêtre   ETAT, CODE, QR, COMPTEUR, MAJ, MAJPROG, MSG, TEST, AFFICHER, FIN
 //    fenêtre → Node   PRET, CODE, MAJ, CHANGER, JOURNAL, QUITTER, ERREUR
 // ═══════════════════════════════════════════════════════════════════════════
 

@@ -44,7 +44,9 @@ public class CPUI {
   static Panel barreEtat;
   static Form f;
   static Label lblPoint, lblEtat, lblDetail, lblCompteur, lblErreur, lblMaj, lblMajNote, lblMajInfo, lblMsg, lblTest;
-  static Panel pnlCode, pnlMaj;
+  static Panel pnlCode, pnlMaj, pnlQR;
+  static int qrTaille = 0;
+  static string qrBits = "";
   static TextBox txtCode;
   static Button btnValider, btnMaj;
   static bool fr = true, quitter = false;
@@ -170,18 +172,26 @@ public class CPUI {
     etat.Controls.Add(barreEtat); etat.Controls.Add(lblPoint); etat.Controls.Add(lblEtat); etat.Controls.Add(lblDetail); etat.Controls.Add(lblCompteur);
     corps.Controls.Add(etat);
     // Appairage
-    pnlCode = Carte(420, 162, 12); pnlCode.Visible = false;
+    // Deux façons de relier : scanner le QR code avec la tablette (le plus
+    // simple, 1.6.5), ou taper le code affiché par la tablette.
+    pnlCode = Carte(420, 366, 12); pnlCode.Visible = false;
     pnlCode.Controls.Add(Texte(T("Relie ce PC à ta tablette (une seule fois)", "Link this PC to your tablet (once only)"), 11f, TEXTE, FontStyle.Bold, 14, 12, 392, 24));
-    pnlCode.Controls.Add(Texte(T("Sur ta tablette, ouvre la Button Box et appuie sur APPAIRER. Tape ici le code qui s'affiche sur ta tablette :",
-      "On your tablet, open the Button Box and tap PAIR. Type here the code shown on your tablet:"), 9.5f, DOUX, FontStyle.Regular, 14, 38, 392, 40));
+    pnlQR = new Panel(); pnlQR.Location = new Point(14, 44); pnlQR.Size = new Size(184, 184); pnlQR.BackColor = Color.White;
+    pnlQR.Paint += delegate(object s, PaintEventArgs e) { DessinerQR(e.Graphics, pnlQR.ClientSize); };
+    pnlCode.Controls.Add(pnlQR);
+    pnlCode.Controls.Add(Texte(T("Le plus simple : scanne ce QR code avec ta tablette", "Easiest: scan this QR code with your tablet"), 10.5f, BLEU, FontStyle.Bold, 208, 50, 198, 44));
+    pnlCode.Controls.Add(Texte(T("Avec l'appareil photo de la tablette, ou dans NOA (bouton SCANNER). Confirme sur la tablette : ce PC se relie tout seul.",
+      "With the tablet's camera app, or in NOA (SCAN button). Confirm on the tablet: this PC links by itself."), 9.5f, DOUX, FontStyle.Regular, 208, 98, 198, 126));
+    pnlCode.Controls.Add(Texte(T("Ou bien : sur ta tablette, appuie sur APPAIRER et tape ici le code qui s'affiche :",
+      "Or: on your tablet, tap PAIR and type here the code it shows:"), 9.5f, DOUX, FontStyle.Regular, 14, 236, 392, 40));
     txtCode = new TextBox();
     txtCode.Font = new Font("Consolas", 18f, FontStyle.Bold); txtCode.CharacterCasing = CharacterCasing.Upper;
     txtCode.BackColor = Color.FromArgb(246, 249, 252); txtCode.ForeColor = TEXTE; txtCode.BorderStyle = BorderStyle.FixedSingle;
     txtCode.TextAlign = HorizontalAlignment.Center; txtCode.MaxLength = 12;
-    txtCode.Location = new Point(14, 82); txtCode.Size = new Size(240, 40);
-    btnValider = Bouton(T("Valider", "Confirm"), BLEU, 264, 81, 142, 38);
+    txtCode.Location = new Point(14, 280); txtCode.Size = new Size(240, 40);
+    btnValider = Bouton(T("Valider", "Confirm"), BLEU, 264, 279, 142, 38);
     btnValider.Click += delegate { Valider(); };
-    lblErreur = Texte("", 9.5f, ROUGE, FontStyle.Regular, 14, 124, 392, 34);
+    lblErreur = Texte("", 9.5f, ROUGE, FontStyle.Regular, 14, 324, 392, 38);
     pnlCode.Controls.Add(txtCode); pnlCode.Controls.Add(btnValider); pnlCode.Controls.Add(lblErreur);
     corps.Controls.Add(pnlCode);
     // Mise à jour
@@ -221,6 +231,21 @@ public class CPUI {
       e.Cancel = true;
       Quitter();
     };
+  }
+  // Le QR code reçu du Bridge : une case noire par « 1 ». La carte est blanche
+  // tout autour : elle fait la marge dont les appareils photo ont besoin.
+  static void DessinerQR(Graphics g, Size zone) {
+    int n = qrTaille;
+    if (n <= 0 || qrBits.Length < n * n) return;
+    int cote = Math.Min(zone.Width, zone.Height);
+    int cell = cote / (n + 2);
+    if (cell < 1) cell = 1;
+    int x0 = (zone.Width - cell * n) / 2, y0 = (zone.Height - cell * n) / 2;
+    using (SolidBrush noir = new SolidBrush(Color.Black)) {
+      for (int y = 0; y < n; y++)
+        for (int x = 0; x < n; x++)
+          if (qrBits[y * n + x] == '1') g.FillRectangle(noir, x0 + x * cell, y0 + y * cell, cell, cell);
+    }
   }
   static void Montrer() {
     f.Show();
@@ -281,10 +306,17 @@ public class CPUI {
         else if (code == "tablette") { c = VERT; titre = T("Connecté à ta tablette", "Connected to your tablet"); }
         else if (code == "perdu") { c = ROUGE; titre = T("Liaison perdue", "Connection lost"); }
         else if (code == "refuse") { c = AMBRE; titre = T("Compte utilisé sur un autre PC", "Account in use on another PC"); }
-        else if (code == "appairage") { c = BLEU; titre = T("En attente du code", "Waiting for the code"); }
+        else if (code == "appairage") { c = BLEU; titre = T("En attente de ta tablette", "Waiting for your tablet"); }
         else if (code == "erreur") { c = ROUGE; titre = T("Problème", "Problem"); }
         lblPoint.ForeColor = c; barreEtat.BackColor = c; lblEtat.Text = titre; lblDetail.Text = Champ(p, 2);
         f.Text = "CitizenPad Bridge · " + titre;
+        break;
+      }
+      case "QR": {
+        int n = 0;
+        int.TryParse(Champ(p, 1), out n);
+        qrTaille = n; qrBits = Champ(p, 2);
+        pnlQR.Invalidate();
         break;
       }
       case "COMPTEUR":

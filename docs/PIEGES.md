@@ -67,6 +67,15 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 - Le micro de la tablette passe par le même lien, avec l'octet 1 en tête (avant la 1.6.3 : sans octet, incompatible).
 - Le lien direct est partagé (écoute, touches, son) et reste ouvert : arrêter l'écoute ne le ferme pas.
 
+## 🔗 Appairage
+
+### QR code dans la fenêtre — 1.6.5 — 20 nov. 2026
+- Le Bridge tire son code (alphabet du site, `ABC-DEF`), envoie la matrice à la fenêtre (`QR <taille> <0101…>`, ligne par ligne de haut en bas), et interroge `claim` toutes les 1,2 s (5 s après 10 min) sur citizenpad.com ET sur le site de test, à tour de rôle. Le premier qui aboutit, du QR ou du code tapé, gagne.
+- Le QR mène au site de test seulement si ce PC y était déjà relié (ou `CITIZENPAD_URL`) ; le scanner de la page de test lit quand même un QR du site normal (il ne garde que le code).
+- La carte blanche autour du QR fait la marge exigée par les lecteurs : `DessinerQR` ne laisse qu'une case de marge dans son cadre.
+- Vérification sans Windows : la matrice envoyée est relue par `jsqr` (bon lien relu). La fenêtre WinForms ne s'affiche PAS sous Mono + Xvfb (aucune fenêtre créée) : ne pas y perdre de temps.
+- `mcs` s'installe dans le conteneur après `apt-get update` (`apt-get install mono-devel`) : `mcs -langversion:5 -target:winexe -r:System.Windows.Forms.dll -r:System.Drawing.dll aide.cs`.
+
 ## 🖥️ Au lancement chez le joueur
 
 ### Chemins avec accents (Kaldi / Vosk)

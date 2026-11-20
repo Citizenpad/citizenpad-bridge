@@ -35,7 +35,8 @@ import { homedir, tmpdir } from 'node:os'
 import { join, dirname, basename } from 'node:path'
 import readline from 'node:readline'
 import { createServer } from 'node:net'
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes, randomInt, createHash } from 'node:crypto'
+import qrcode from 'qrcode-generator'
 import { connect as connexionLocale } from 'node:net'
 import { ascii } from './fenetre.mjs'
 import { Noa } from './noa.mjs'
@@ -46,7 +47,7 @@ import { Noa } from './noa.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.6.4'
+const VERSION = '1.6.5'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -891,37 +892,98 @@ async function appairer(ancienne) {
   return quitter(1)
 }
 
-/** Même chose, dans la fenêtre : un champ, un bouton Valider, et des
- *  essais illimités (un code mal tapé n'oblige pas à tout relancer). */
-async function appairerFenetre(ancienne) {
-  montrerEtat('appairage', t('Le code apparaît sur ta tablette quand tu appuies sur APPAIRER.', 'The code appears on your tablet when you tap PAIR.'))
-  for (let premier = true; ; premier = false) {
-    let code = String(await fen.demanderCode(premier)).toUpperCase().replace(/\s+/g, '')
-    let site = process.env.CITIZENPAD_URL ? SITE : SITE_PROD
-    if (/^T-/.test(code)) { site = SITE_TEST; code = code.slice(2) }
+/** Échange un code contre l'accès au salon. Renvoie la configuration, ou
+ *  { erreur } si le site refuse. Lève une exception si le site est injoignable. */
+async function reclamer(site, code, ancienne) {
+  const r = await fetch(`${site}/api/bridge/claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, appareil: process.env.COMPUTERNAME || 'PC' }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) return { erreur: j?.error || '' }
+  const conf = { canal: j.canal, url: j.supabase_url, anon: j.supabase_anon, site, bridge_id: ancienne?.bridge_id }
+  if (!conf.bridge_id) delete conf.bridge_id
+  return { conf }
+}
+
+// ── Appairage par QR code (1.6.5) ────────────────────────────────────────────
+// Le PC n'a pas d'appareil photo : c'est donc LUI qui montre un QR code, et la
+// tablette qui le scanne. Le Bridge tire son propre code (même alphabet que le
+// site), l'affiche en QR (lien « …/?bridge=CODE »), puis demande au site, toutes
+// les 2 à 3 s, si ce code a été enregistré par une tablette. La tablette, elle,
+// demande au joueur de confirmer avant d'enregistrer le code (un QR code reçu
+// d'un inconnu relierait sinon son compte au PC de cet inconnu).
+const ALPHABET_CODE = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'
+function codeQR() {
+  let c = ''
+  for (let i = 0; i < 6; i++) c += ALPHABET_CODE[randomInt(ALPHABET_CODE.length)]
+  return `${c.slice(0, 3)}-${c.slice(3)}`
+}
+/** Envoie la matrice du QR code à la fenêtre : « QR <taille> <0101…> ». */
+function montrerQR(lien) {
+  try {
+    const q = qrcode(0, 'M'); q.addData(lien); q.make()
+    const n = q.getModuleCount()
+    let bits = ''
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) bits += q.isDark(y, x) ? '1' : '0'
+    fen.envoyer('QR', String(n), bits)
+  } catch (e) { noter(`QR impossible : ${e.message}`) }
+}
+/** Attend qu'une tablette ait scanné le QR code. Rend { conf } ou null si `fini()`. */
+async function attendreQR(ancienne, fini) {
+  // Le lien du QR : le site retenu, ou celui de test si ce PC y était déjà relié.
+  const siteLien = process.env.CITIZENPAD_URL ? SITE : (ancienne?.site === SITE_TEST ? SITE_TEST : SITE_PROD)
+  // On interroge les deux sites : la tablette peut scanner avec la page de
+  // test ouverte, même si le lien du QR mène au site normal.
+  const sites = process.env.CITIZENPAD_URL ? [SITE] : [SITE_PROD, SITE_TEST]
+  const code = codeQR()
+  montrerQR(`${siteLien}/?bridge=${code}`)
+  const debut = Date.now()
+  for (let tour = 0; !fini(); tour++) {
+    const site = sites[tour % sites.length]
     try {
-      const r = await fetch(`${site}/api/bridge/claim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, appareil: process.env.COMPUTERNAME || 'PC' }),
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        fen.envoyer('CODE', 'erreur', j?.error || t('Code refusé. Vérifie-le sur ta tablette, ou appuie à nouveau sur APPAIRER pour en avoir un neuf.', 'Code refused. Check it on your tablet, or tap PAIR again for a new one.'))
-        continue
-      }
-      const conf = { canal: j.canal, url: j.supabase_url, anon: j.supabase_anon, site, bridge_id: ancienne?.bridge_id }
-      if (!conf.bridge_id) delete conf.bridge_id
-      ecrireConfig(conf)
-      SITE = site
-      if (site === SITE_TEST) fen.envoyer('TEST')
-      fen.envoyer('CODE', 'ok')
-      noter(`Appairé (${site})`)
-      return conf
-    } catch (e) {
-      fen.envoyer('CODE', 'erreur', t(`Connexion impossible (${e.message}). Vérifie ta connexion Internet et réessaie.`, `Cannot connect (${e.message}). Check your Internet connection and try again.`))
-    }
+      const r = await reclamer(site, code, ancienne)
+      if (r.conf && !fini()) return r
+    } catch {}
+    // Plus calme si la fenêtre reste ouverte longtemps sans personne devant.
+    await new Promise(r => setTimeout(r, Date.now() - debut < 10 * 60_000 ? 1200 : 5000))
   }
+  return null
+}
+
+/** Même chose, dans la fenêtre : un QR code à scanner, OU un champ et un
+ *  bouton Valider, avec des essais illimités (un code mal tapé n'oblige pas à
+ *  tout relancer). Le premier des deux qui aboutit gagne. */
+async function appairerFenetre(ancienne) {
+  montrerEtat('appairage', t('Scanne le QR code avec ta tablette, ou tape le code de ta tablette.', 'Scan the QR code with your tablet, or type the code from your tablet.'))
+  let fini = false
+  const parCode = (async () => {
+    for (let premier = true; ; premier = false) {
+      let code = String(await fen.demanderCode(premier)).toUpperCase().replace(/\s+/g, '')
+      if (fini) return null
+      let site = process.env.CITIZENPAD_URL ? SITE : SITE_PROD
+      if (/^T-/.test(code)) { site = SITE_TEST; code = code.slice(2) }
+      try {
+        const r = await reclamer(site, code, ancienne)
+        if (r.conf) return r
+        fen.envoyer('CODE', 'erreur', r.erreur || t('Code refusé. Vérifie-le sur ta tablette, ou appuie à nouveau sur APPAIRER pour en avoir un neuf.', 'Code refused. Check it on your tablet, or tap PAIR again for a new one.'))
+      } catch (e) {
+        fen.envoyer('CODE', 'erreur', t(`Connexion impossible (${e.message}). Vérifie ta connexion Internet et réessaie.`, `Cannot connect (${e.message}). Check your Internet connection and try again.`))
+      }
+    }
+  })()
+  // La fenêtre affiche le panneau (CODE demande) avant de recevoir le QR.
+  await new Promise(r => setTimeout(r, 50))
+  const parQR = attendreQR(ancienne, () => fini)
+  const { conf } = await Promise.race([parCode, parQR.then(r => r || new Promise(() => {}))])
+  fini = true
+  ecrireConfig(conf)
+  SITE = conf.site
+  if (SITE === SITE_TEST) fen.envoyer('TEST')
+  fen.envoyer('CODE', 'ok')
+  noter(`Appairé (${SITE})`)
+  return conf
 }
 
 /** Le site retenu dans la configuration, s'il fait partie des deux connus. */
