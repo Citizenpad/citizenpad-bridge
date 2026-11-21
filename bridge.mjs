@@ -39,7 +39,7 @@ import { randomBytes, randomInt, createHash } from 'node:crypto'
 import qrcode from 'qrcode-generator'
 import { connect as connexionLocale } from 'node:net'
 import { ascii } from './fenetre.mjs'
-import { Noa } from './noa.mjs'
+import { Noa, effacerWhisper } from './noa.mjs'
 
 /**
  * Version de CE Bridge.
@@ -47,7 +47,7 @@ import { Noa } from './noa.mjs'
  * À incrémenter à chaque correction envoyée aux joueurs (ici ET dans
  * package.json) : c'est l'écart avec /api/version qui annonce la mise à jour.
  */
-const VERSION = '1.6.6'
+const VERSION = '1.6.7'
 
 // ── Où tourne ce Bridge ? ────────────────────────────────────────────────────
 // Deux façons de l'utiliser :
@@ -1144,6 +1144,7 @@ async function main() {
   let compteur = 0
 
   // ── NOA : les oreilles sur le PC ─────────────────────────────────────────
+  effacerWhisper(noter)                    // 1.6.7 : Whisper retiré, ses modèles libèrent la place
   const noa = new Noa({
     diffuser: (event, payload) => { if (abonne && canal) canal.send({ type: 'broadcast', event, payload }) },
     autorise: (appareil) => autorisations.autorise(appareil),

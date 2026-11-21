@@ -9,9 +9,9 @@
 //    - les COMMANDES sont reconnues par Vosk sur une liste fermée de phrases
 //      (CitizenPad-Bridge-Voix.exe) : rapide, sûr, presque rien pour le
 //      processeur ;
-//    - les MESSAGES dictés sont transcrits par Whisper (whisper.cpp), le
-//      meilleur modèle que le PC peut faire tourner. Il ne travaille que
-//      pendant la dictée : il ne gêne pas le jeu en combat.
+//    - les MESSAGES aussi : chaque écran du message n'attend que ses numéros
+//      (annuaire, catégorie, phrase). Whisper a été retiré en 1.6.7 : plus
+//      besoin de lui, et le jeu garde sa carte graphique.
 //
 //  Seul le TEXTE reconnu repart vers la tablette. Le son n'est jamais écrit
 //  sur le disque ni envoyé sur Internet.
@@ -21,29 +21,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { spawn } from 'node:child_process'
 import readline from 'node:readline'
-import { existsSync, mkdirSync, writeFileSync, renameSync, rmSync, openSync, writeSync, closeSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync, rmSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir, cpus } from 'node:os'
 import { gunzipSync } from 'node:zlib'
 import { createHash } from 'node:crypto'
-import { createServer } from 'node:net'
 import { RTCPeerConnection } from 'werift'
 
 const DOSSIER = join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'CitizenPad', 'noa')
 
-// Modèles Whisper (whisper.cpp, quantifiés) : du plus fin au plus léger.
-// Adresse fixe : le Bridge ne télécharge jamais un fichier dont l'adresse lui
-// serait dictée par le réseau.
-const HF = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main'
-export const MODELES_WHISPER = {
-  turbo: { fichier: 'ggml-large-v3-turbo-q5_0.bin', nom: 'Whisper Turbo', mo: 547 },
-  small: { fichier: 'ggml-small-q5_1.bin', nom: 'Whisper Small', mo: 181 },
-  base: { fichier: 'ggml-base-q5_1.bin', nom: 'Whisper Base', mo: 57 },
-}
+// Whisper (1.6.0 à 1.6.6) : ses modèles téléchargés sont effacés au démarrage (jusqu'à 547 Mo).
+const DOSSIER_WHISPER = join(DOSSIER, 'whisper')
 
-// Phrases que Whisper « entend » parfois dans le silence ou le bruit (il a
-// appris sur des vidéos sous-titrées) : jamais un vrai message.
-const HALLUCINATIONS = /sous-titr|amara\.org|merci d'avoir regard|abonnez-vous|thanks for watching|subtitles by|♪|\[musique\]|\[music\]/i
+/** Efface les modèles Whisper laissés par les versions 1.6.0 à 1.6.6. */
+export function effacerWhisper(noter) {
+  try { if (existsSync(DOSSIER_WHISPER)) { rmSync(DOSSIER_WHISPER, { recursive: true, force: true }); noter('NOA  anciens modèles Whisper effacés') } } catch (e) { noter(`NOA  Whisper non effacé : ${e.message}`) }
+}
 
 export class Noa {
   /**
@@ -52,7 +45,7 @@ export class Noa {
    * @param {(appareil: string) => boolean} o.autorise             cet écran a-t-il le droit de piloter ce PC ?
    * @param {(ligne: string) => void} o.noter                       journal
    * @param {() => string} o.site                                   site CitizenPad (modèle Vosk)
-   * @param {string} o.dossierProgramme                             où sont Voix.exe, libvosk.dll, whisper-server
+   * @param {string} o.dossierProgramme                             où sont Voix.exe et libvosk.dll
    */
   constructor(o) {
     this.o = o
@@ -63,10 +56,7 @@ export class Noa {
     this.micro = -1
     this.ouvert = false
     this.appareil = ''
-    this.whisper = { proc: null, port: 0, cle: '', pret: null, inactif: null }
     this.choixModele = 'auto'
-    this.echecModele = 0         // dernier téléchargement raté du modèle Whisper (pas de nouvel essai avant 30 min)
-    this.invite = ''            // vocabulaire pour Whisper (pseudos, lieux)
     this.fileDictee = Promise.resolve()
     this.pc = null; this.dc = null
     this.dernierNiveau = 0; this.niveauEnvoye = 0
@@ -85,12 +75,7 @@ export class Noa {
         case 'ouvrir': return await this.ouvrir(m)
         case 'grammaire': return this.ecrire('GRAMMAIRE', JSON.stringify(m.grammaire || []), m.rejouer ? '1' : '0')
         case 'sourd': return this.ecrire('SOURD', m.v ? '1' : '0')
-        case 'dictee': {
-          if (typeof m.invite === 'string') this.invite = m.invite.slice(0, 600)
-          this.ecrire('DICTEE', m.v ? '1' : '0'); this.dicteeActive = !!m.v
-          if (m.v) this.demarrerWhisper().catch(e => this.etat({ whisper: { etat: 'erreur', detail: e.message } }))
-          return
-        }
+        case 'dictee': return            // plus de dictée libre (Whisper retiré en 1.6.7)
         case 'micros': return this.ecrire('MICROS')
         case 'fermer': return this.fermer()
         case 'rtc': return await this.signal(m)
@@ -121,7 +106,6 @@ export class Noa {
   async ouvrir(m) {
     this.appareil = String(m.appareil || '')
     this.langue = /^[a-z]{2}$/.test(m.langue) ? m.langue : 'fr'
-    this.choixModele = ['auto', 'turbo', 'small', 'base', 'aucun'].includes(m.modele) ? m.modele : 'auto'
     const source = m.source === 'tablette' ? 'tablette' : 'pc'
     const micro = Number.isInteger(m.micro) ? m.micro : -1
     this.ouvert = true
@@ -134,10 +118,7 @@ export class Noa {
     this.source = source; this.micro = micro
     this.ecrire('SOURCE', source === 'pc' ? 'pc' : 'externe', String(micro))
     this.ecrire('MICROS')
-    const whisper = this.choisirWhisper()
-    this.etat({ etat: 'pret', source, whisper: { modele: whisper?.modele || null, gpu: !!whisper?.gpu, etat: this.whisper.proc ? 'pret' : 'repos' } })
-    // Whisper chargé dès maintenant (téléchargé la première fois) : prêt avant le premier message.
-    if (whisper) this.demarrerWhisper().catch(e => this.etat({ whisper: { modele: whisper.modele, etat: 'erreur', detail: e.message } }))
+    this.etat({ etat: 'pret', source, whisper: { modele: null, etat: 'repos' } })
     this.o.noter(`NOA  écoute ouverte (${source}${source === 'pc' ? `, micro ${micro}` : ''})`)
   }
 
@@ -148,9 +129,6 @@ export class Noa {
     this.ecrire('DICTEE', '0')
     this.etat({ etat: 'arret' })
     this.o.noter('NOA  écoute fermée')
-    // Whisper rend sa mémoire (vidéo) au jeu trois minutes après la fermeture de NOA.
-    clearTimeout(this.whisper.inactif)
-    this.whisper.inactif = setTimeout(() => { if (!this.ouvert) this.arreterWhisper() }, 180_000)
     // Le programme reste prêt une minute (réouverture instantanée), puis s'arrête.
     clearTimeout(this.minuteurArret)
     this.minuteurArret = setTimeout(() => this.arreterSiInutile(), 60_000)
@@ -163,14 +141,12 @@ export class Noa {
     try { this.ecrire('QUITTER') } catch {}
     try { this.voix?.kill() } catch {}
     this.voix = null; this.voixPrete = null
-    this.arreterWhisper()
   }
 
   arreter() {
     try { this.ecrire('QUITTER') } catch {}
     try { this.voix?.kill() } catch {}
     this.voix = null; this.voixPrete = null
-    this.arreterWhisper()
     try { this.pc?.close() } catch {}
     this.pc = null; this.dc = null
   }
@@ -282,8 +258,7 @@ export class Noa {
         const mots = (j?.result || []).filter(w => w.word !== '[unk]')
         const c = mots.length ? mots.reduce((x, w) => x + (w.conf ?? 1), 0) / mots.length : 1
         const alts = (a?.alternatives || []).filter(x => x.text).map(x => ({ t: x.text, s: Math.round(x.confidence * 10) / 10 }))
-        // Une phrase sans aucun mot du vocabulaire compte aussi pendant une dictée : Whisper va l'écrire.
-        if (!t && !this.dicteeActive) return
+        if (!t) return
         this.emettre('resultat', { t, c: Math.round(c * 100) / 100, seq: Number(n) || 0, alts })
         return
       }
@@ -296,7 +271,7 @@ export class Noa {
         this.emettre('niveau', { n })
         return
       }
-      case 'SEGMENT': { const [n, b] = reste.split('\t'); return this.dicter(Buffer.from(b || '', 'base64'), Number(n) || 0) }
+      case 'SEGMENT': return             // (dictée : plus utilisée)
       case 'MICROS': return this.emettre('micros', { liste: lireJson(reste) || [] })
       case 'INFOS': this.materiel = { cartes: lireJson(reste) || [], coeurs: cpus().length, vulkan: vulkanPresent() }; this.o.noter(`NOA  matériel : ${JSON.stringify(this.materiel)}`); return
       case 'MICRO_OK': this.o.noter(`VOIX  micro ouvert (${reste})`); return
@@ -331,153 +306,6 @@ export class Noa {
     writeFileSync(join(dossier, '.complet'), new Date().toISOString())
     this.o.noter(`NOA  modèle Vosk ${this.langue} installé`)
     return dossier
-  }
-
-  // ── Whisper ───────────────────────────────────────────────────────────────
-  /** Le meilleur modèle que ce PC peut faire tourner sans gêner le jeu. */
-  choisirWhisper() {
-    if (this.choixModele === 'aucun') return null
-    const m = this.materiel || { cartes: [], coeurs: cpus().length, vulkan: vulkanPresent() }
-    // Carte dédiée : NVIDIA, AMD Radeon, Intel Arc. Les puces intégrées
-    // partagent la mémoire du PC : on reste sur le processeur.
-    const dediees = m.cartes.filter(c => /nvidia|geforce|rtx|radeon|rx\s?\d|arc/i.test(c.nom) && !/basic|virtual|parsec|meta/i.test(c.nom))
-    const vram = Math.max(0, ...dediees.map(c => c.vram || 0)) / 2 ** 30
-    const gpu = m.vulkan && vram >= 3.5
-    let modele
-    if (this.choixModele !== 'auto') modele = this.choixModele
-    // Star Citizen prend beaucoup de mémoire vidéo : le grand modèle seulement
-    // sur une carte qui en a de la marge.
-    else if (gpu && vram >= 6) modele = 'turbo'
-    else if (gpu) modele = 'small'
-    else modele = m.coeurs >= 8 ? 'small' : 'base'
-    return { modele, gpu, vram: Math.round(vram * 10) / 10 }
-  }
-
-  async demarrerWhisper() {
-    const choix = this.choisirWhisper()
-    if (!choix) return
-    clearTimeout(this.whisper.inactif)
-    const cle = `${choix.modele}|${choix.gpu}|${this.langue}`
-    if (this.whisper.pret && this.whisper.cle === cle) return this.whisper.pret
-    this.arreterWhisper()
-    this.whisper.cle = cle
-    this.whisper.pret = (async () => {
-      const fichier = await this.modeleWhisper(choix.modele)
-      const exe = join(this.o.dossierProgramme, choix.gpu ? 'whisper-server-vulkan.exe' : 'whisper-server.exe')
-      if (!existsSync(exe)) throw new Error(`${exe} introuvable`)
-      const port = await portLibre()
-      // Le processeur reste au jeu : au plus 4 fils, et jamais tous les cœurs.
-      const fils = Math.max(2, Math.min(4, cpus().length - 2))
-      const args = ['-m', fichier, '-l', this.langue, '--host', '127.0.0.1', '--port', String(port), '-t', String(fils), '-nt']
-      if (!choix.gpu) args.push('-ng')
-      this.etat({ whisper: { modele: choix.modele, gpu: choix.gpu, etat: 'demarre' } })
-      const p = spawn(exe, args, { cwd: this.o.dossierProgramme, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
-      this.whisper.proc = p; this.whisper.port = port
-      let journal = ''
-      const garder = d => { journal = (journal + d).slice(-3000) }
-      p.stdout.on('data', garder); p.stderr.on('data', garder)
-      p.on('exit', code => {
-        this.o.noter(`WHISPER  arrêté (code ${code}) ${code ? journal.slice(-600).replace(/\s+/g, ' ') : ''}`)
-        if (this.whisper.proc === p) { this.whisper.proc = null; this.whisper.pret = null; this.whisper.cle = '' }
-      })
-      // Prêt quand /health répond (le modèle est chargé).
-      const debut = Date.now()
-      for (;;) {
-        if (!this.whisper.proc) throw new Error('Whisper n\'a pas démarré')
-        try { const r = await fetch(`http://127.0.0.1:${port}/health`); if (r.ok) break } catch {}
-        if (Date.now() - debut > 60_000) throw new Error('Whisper ne répond pas')
-        await attendre(250)
-      }
-      const gpuVu = /vulkan.*found [1-9]|ggml_vulkan: \d+ =/i.test(journal)
-      this.o.noter(`WHISPER  prêt : ${choix.modele}, ${choix.gpu ? (gpuVu ? 'carte graphique' : 'carte graphique demandée, non vue') : 'processeur'}, ${Date.now() - debut} ms`)
-      this.etat({ whisper: { modele: choix.modele, gpu: choix.gpu, etat: 'pret' } })
-    })()
-    this.whisper.pret.catch(e => { this.o.noter(`WHISPER  ${e.message}`); this.whisper.pret = null; this.whisper.cle = '' })
-    return this.whisper.pret
-  }
-
-  arreterWhisper() {
-    clearTimeout(this.whisper.inactif)
-    try { this.whisper.proc?.kill() } catch {}
-    this.whisper = { proc: null, port: 0, cle: '', pret: null, inactif: null }
-  }
-
-  async modeleWhisper(nom) {
-    const m = MODELES_WHISPER[nom]
-    const chemin = join(DOSSIER, 'whisper', m.fichier)
-    if (existsSync(chemin) && existsSync(chemin + '.complet')) return chemin
-    // Un téléchargement raté n'est pas relancé à chaque phrase : 547 Mo toutes les
-    // 20 s saturaient la connexion du joueur (journal de Veensce, 20 nov. 2026).
-    if (Date.now() - this.echecModele < 30 * 60_000) throw new Error('modèle indisponible (nouvel essai dans 30 min)')
-    mkdirSync(dirname(chemin), { recursive: true })
-    try { return await this.telechargerModele(m, chemin, nom) }
-    catch (e) { this.echecModele = Date.now(); throw e }
-  }
-
-  async telechargerModele(m, chemin, nom) {
-    // Hugging Face donne l'empreinte SHA-256 du fichier (X-Linked-Etag) sur sa
-    // REDIRECTION vers son stockage. ⚠ La réponse finale (stockage Xet) porte une
-    // autre empreinte : en suivant la redirection d'office, la vérification
-    // échouait TOUJOURS (« modèle abîmé ») et Whisper ne s'installait jamais.
-    let url = `${HF}/${m.fichier}`
-    let r = await fetch(url, { redirect: 'manual' })
-    const linked = r.headers.get('x-linked-etag') || ''
-    for (let n = 0; r.status >= 300 && r.status < 400 && n < 5; n++) {
-      const loc = r.headers.get('location')
-      if (!loc) break
-      try { await r.body?.cancel() } catch {}
-      url = new URL(loc, url).href
-      r = await fetch(url)
-    }
-    if (!r.ok || !r.body) throw new Error(`téléchargement du modèle refusé (${r.status})`)
-    // Sans redirection (fichier servi directement), l'empreinte est dans l'etag.
-    const attendue = String(linked || r.headers.get('etag') || '').replace(/^W\//, '').replace(/"/g, '').toLowerCase()
-    const total = Number(r.headers.get('content-length')) || m.mo * 2 ** 20
-    const tmp = chemin + '.partiel'
-    const fd = openSync(tmp, 'w')
-    const h = createHash('sha256')
-    let recu = 0, dernier = -1
-    try {
-      for await (const b of r.body) {
-        writeSync(fd, b); h.update(b); recu += b.length
-        const pct = Math.floor(recu * 100 / total)
-        if (pct !== dernier) { dernier = pct; this.etat({ whisper: { modele: nom, etat: 'telecharge', pct } }) }
-      }
-    } finally { closeSync(fd) }
-    const vue = h.digest('hex')
-    if (/^[0-9a-f]{64}$/.test(attendue) && vue !== attendue) { rmSync(tmp, { force: true }); throw new Error(`modèle abîmé (empreinte ${vue.slice(0, 12)}… au lieu de ${attendue.slice(0, 12)}…, ${recu} octets)`) }
-    renameSync(tmp, chemin)
-    writeFileSync(chemin + '.complet', '')
-    this.o.noter(`NOA  modèle ${m.fichier} installé (${Math.round(recu / 2 ** 20)} Mo)`)
-    return chemin
-  }
-
-  /** Une phrase dictée → Whisper → texte, dans l'ordre où elles ont été dites. */
-  dicter(pcm, seq = 0) {
-    this.fileDictee = this.fileDictee.then(async () => {
-      try {
-        await this.demarrerWhisper()
-        if (!this.whisper.port) return
-        const fd = new FormData()
-        fd.append('file', new Blob([wav(pcm)], { type: 'audio/wav' }), 'phrase.wav')
-        fd.append('language', this.langue)
-        fd.append('response_format', 'json')
-        fd.append('temperature', '0.0')
-        fd.append('no_timestamps', 'true')
-        fd.append('suppress_non_speech', 'true')
-        if (this.invite) fd.append('prompt', this.invite)
-        const t0 = Date.now()
-        const r = await fetch(`http://127.0.0.1:${this.whisper.port}/inference`, { method: 'POST', body: fd })
-        const j = await r.json().catch(() => ({}))
-        const texte = String(j?.text || '').replace(/\s+/g, ' ').trim()
-        this.o.noter(`WHISPER  ${(pcm.length / 32000).toFixed(1)} s de voix → ${Date.now() - t0} ms`)
-        // Toujours répondre (même vide) : la tablette attend ce numéro pour décider.
-        this.emettre('dictee', { t: !texte || HALLUCINATIONS.test(texte) ? '' : texte, seq })
-      } catch (e) {
-        this.o.noter(`WHISPER  échec : ${e.message}`)
-        this.emettre('dictee', { t: '', seq, erreur: e.message })
-      }
-    })
   }
 
   // ── Lien direct avec la tablette (WebRTC) ─────────────────────────────────
@@ -524,31 +352,12 @@ export class Noa {
 }
 
 // ── Outils ──────────────────────────────────────────────────────────────────
-const attendre = ms => new Promise(r => setTimeout(r, ms))
 function lireJson(s) { try { return JSON.parse(s) } catch { return null } }
 
 /** vulkan-1.dll vient avec les pilotes de la carte graphique. */
 function vulkanPresent() {
   const sys = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'vulkan-1.dll')
   try { return statSync(sys).isFile() } catch { return false }
-}
-
-function portLibre() {
-  return new Promise((ok, ko) => {
-    const s = createServer()
-    s.once('error', ko)
-    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => ok(p)) })
-  })
-}
-
-/** Un fichier WAV (16 kHz, 16 bits, mono) autour du son brut. */
-export function wav(pcm) {
-  const h = Buffer.alloc(44)
-  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8)
-  h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22)
-  h.writeUInt32LE(16000, 24); h.writeUInt32LE(32000, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34)
-  h.write('data', 36); h.writeUInt32LE(pcm.length, 40)
-  return Buffer.concat([h, pcm])
 }
 
 /** Extrait une archive tar (déjà décompressée) : seulement des fichiers et

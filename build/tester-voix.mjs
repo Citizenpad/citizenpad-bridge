@@ -1,12 +1,10 @@
 // Essai de CitizenPad-Bridge-Voix.exe sur la machine de GitHub : le programme
 // démarre, charge libvosk.dll, lit le modèle français (téléchargé comme le
 // ferait le Bridge), accepte une liste de phrases et du son, et répond.
-// whisper-server démarre aussi (aide en ligne seulement : pas de modèle ici).
 import { Noa } from '../noa.mjs'
-import { spawn, execFileSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import readline from 'node:readline'
 import { join, resolve } from 'node:path'
-import { existsSync } from 'node:fs'
 
 const dist = resolve(import.meta.dirname, '..', 'dist')
 const SITE = 'https://citizenpad-test.contact-citizenpad.workers.dev'
@@ -40,14 +38,4 @@ w('INFOS'); await attendre('INFOS', 10000)
 w('QUITTER')
 await new Promise(r => p.on('exit', r))
 
-for (const f of ['whisper-server.exe', 'whisper-server-vulkan.exe']) {
-  const exe = join(dist, f)
-  if (!existsSync(exe)) throw new Error(`${f} absent`)
-  try { execFileSync(exe, ['--help'], { stdio: 'pipe', timeout: 20000 }) ; console.log(`✓ ${f} démarre`) }
-  catch (e) {
-    // Sans pilote Vulkan sur la machine de GitHub, la version carte graphique ne peut pas démarrer : normal.
-    if (f.includes('vulkan')) console.log(`  (${f} : ${String(e.message).slice(0, 120)} — attendu sans carte graphique)`)
-    else throw e
-  }
-}
 console.log('✓ Les oreilles de NOA fonctionnent.')

@@ -14,10 +14,9 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 
 Copy-Item (Join-Path $dist 'CitizenPad-Bridge.exe') $stage
 Copy-Item (Join-Path $dist 'CitizenPad-Bridge-Aide.exe') $stage
-# NOA sur le PC : les oreilles (Vosk), Whisper, et leurs bibliothèques
+# NOA sur le PC : les oreilles (Vosk) et leurs bibliothèques
 Copy-Item (Join-Path $dist 'CitizenPad-Bridge-Voix.exe') $stage
 Get-ChildItem $dist -Filter *.dll | Copy-Item -Destination $stage
-Get-ChildItem $dist -Filter 'whisper-server*.exe' | Copy-Item -Destination $stage
 Copy-Item (Join-Path $dist 'logo.png') $stage
 foreach ($f in 'LISEZ-MOI.txt', 'LICENCE.txt', 'profil-touches-citizenpad.xml') { Copy-Item (Join-Path $racine $f) $stage }
 Copy-Item (Join-Path $PSScriptRoot 'Assets') (Join-Path $stage 'Assets') -Recurse

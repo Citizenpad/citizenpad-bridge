@@ -67,10 +67,9 @@ Name: "bureau"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:Ad
 [Files]
 Source: "..\dist\CitizenPad-Bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\CitizenPad-Bridge-Aide.exe"; DestDir: "{app}"; Flags: ignoreversion
-; NOA sur le PC : les oreilles (Vosk), Whisper, et leurs bibliothèques
+; NOA sur le PC : les oreilles (Vosk) et leurs bibliothèques
 Source: "..\dist\CitizenPad-Bridge-Voix.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\*.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\whisper-server*.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\LISEZ-MOI.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENCE.txt"; DestDir: "{app}"; Flags: ignoreversion

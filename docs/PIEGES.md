@@ -62,6 +62,12 @@ qui a marché (et ce qui n'a pas marché). Le plus récent en haut de chaque par
 - Vosk avec plusieurs lectures (`set_max_alternatives`) ne donne plus la certitude de chaque mot : on fait tourner DEUX lecteurs sur le même son (un pour la certitude, un pour les 6 lectures).
 - Une phrase sans mot reconnu n'est envoyée que pendant une dictée avec de la voix, sinon le bruit de fond fait dire « pas compris ».
 
+### Whisper retiré — 1.6.7 — 20 nov. 2026
+- Les messages de NOA se font maintenant par numéros (annuaire, catégorie, phrase) : chaque écran n'écoute que ses choix, Vosk suffit et répond tout de suite. Whisper ne servait plus (et c'était lui le plus lent).
+- Retiré : compilation dans `construire.yml` (15 min la première fois), `whisper-server*.exe` (installateur, MSIX), le code dans `noa.mjs`. Au démarrage, le dossier `%LOCALAPPDATA%\CitizenPad\noa\whisper` (jusqu'à 547 Mo) est effacé (`effacerWhisper`).
+- Les commandes `dictee` et `SEGMENT` sont ignorées sans erreur (anciennes tablettes).
+- ⚠ Ne pas le remettre pour « mieux comprendre » : le vrai gain a été de réduire ce qu'on attend, pas d'ajouter un plus gros moteur.
+
 ### Whisper ne s'installait JAMAIS : « modèle abîmé (empreinte différente) » — 20 nov. 2026 — RÉSOLU (1.6.6)
 - Symptôme (journal de Veensce) : 115 fois « WHISPER modèle abîmé », parfois toutes les 20 s ; Whisper jamais installé, donc la dictée par le PC n'a jamais tourné chez lui. 547 Mo retéléchargés à chaque essai.
 - Cause : l'empreinte SHA-256 de Hugging Face (`X-Linked-Etag`) est sur la REDIRECTION de `huggingface.co/…/resolve/…`. `fetch` suivait la redirection d'office et lisait l'`etag` du stockage final (Xet), qui n'est pas le SHA-256 du fichier → vérification toujours ratée.
